@@ -1,0 +1,151 @@
+[
+  {
+    "id": "1781526497209",
+    "fullName": "Test Driver",
+    "email": "driver@test.com",
+    "phone": "03001234567",
+    "password": "$2a$10$rN8fh6D8X6A.SK9AjwtK1ejL6D7FJZ4JY9ZhMrBFsPGGJGcqcQlCK",
+    "role": "DRIVER",
+    "createdAt": "2026-06-15T12:28:17.209Z",
+    "verificationStatus": "APPROVED",
+    "documents": null
+  },
+  {
+    "id": "1781526602695",
+    "fullName": "Test Mechanic",
+    "email": "mechanic@test.com",
+    "phone": "03111234567",
+    "password": "$2a$10$CQvLnFDyT2f7NCe59/jfqOlhn23cln39yNpVygf1O/ootNrqhQPdW",
+    "role": "MECHANIC",
+    "createdAt": "2026-06-15T12:30:02.695Z",
+    "verificationStatus": "PENDING",
+    "documents": {
+      "cnicFront": "CNIC_Front_Verified.jpg",
+      "cnicBack": "CNIC_Back_Verified.jpg",
+      "workshopPics": [
+        "Workshop_Image_1.jpg",
+        "Workshop_Image_2.jpg",
+        "Workshop_Image_3.jpg",
+        "Workshop_Image_4.jpg",
+        "Workshop_Image_5.jpg"
+      ],
+      "policeCert": "Police_Character_Certificate.pdf",
+      "uploadedAt": "2026-06-15T12:31:51.245Z"
+    }
+  },
+  {
+    "id": "1781526793409",
+    "fullName": "Ehsan Shahid",
+    "email": "ehsanshahid522@gmail.com",
+    "phone": "+923457124397",
+    "password": "$2a$10$uD.Je/ZU3nk.LrwEh6UDl.VWPw.b.0BCADyqZ79GTvVSSg1R35cyS",
+    "role": "MECHANIC",
+    "createdAt": "2026-06-15T12:33:13.409Z",
+    "verificationStatus": "PENDING",
+    "documents": null
+  },
+  {
+    "id": "1781527757699",
+    "fullName": "Ehsan Shahid",
+    "email": "ehsanshahid55@gmail.com",
+    "phone": "03457124397",
+    "password": "$2a$10$byh6aPsmYtyYbP/b6RJY/u5KYCSEu4e8x/p297C9pihAozA1N3DAO",
+    "role": "MECHANIC",
+    "createdAt": "2026-06-15T12:49:17.699Z",
+    "verificationStatus": "PENDING",
+    "documents": {
+      "cnicFront": "images (6).jpg",
+      "cnicBack": "images (4).jpg",
+      "workshopPics": [
+        "images (6).jpg",
+        "OIP (12).webp",
+        "images (3).jpg",
+        "images (2).jpg",
+        "images (2).jpg"
+      ],
+      "policeCert": "FM S26 Week 9 part 2.ppt",
+      "uploadedAt": "2026-06-15T12:50:51.327Z"
+    }
+  },
+  {
+    "id": "1781528018101",
+    "fullName": "Ehsan Shahid",
+    "email": "ehsanshahid97@gmail.com",
+    "phone": "03457124397",
+    "password": "$2a$10$NIy8zU3f8KzT5tG9DZccyuabMf43kaFxZUnCnBCkGecNwOqYamw.2",
+    "role": "DRIVER",
+    "createdAt": "2026-06-15T12:53:38.101Z",
+    "verificationStatus": "APPROVED",
+    "documents": null,
+    "vehicles": [
+      {
+        "id": "VH-1781631846077",
+        "make": "gli",
+        "model": "1.6",
+        "year": "2020",
+        "color": "White",
+        "plateNumber": "397",
+        "vehicleType": "Car",
+        "isPrimary": true,
+        "addedAt": "2026-06-16T17:44:06.077Z"
+      },
+      {
+        "id": "VH-1781685742214",
+        "make": "tjk",
+        "model": "fgt",
+        "year": "89",
+        "color": "Red",
+        "plateNumber": "WERTYUI",
+        "vehicleType": "Car",
+        "isPrimary": false,
+        "addedAt": "2026-06-17T08:42:22.214Z"
+      }
+    ]
+  },
+  {
+    "id": "1781528121131",
+    "fullName": "Ehsan Shahid",
+    "email": "ehsanshahid397@gmail.com",
+    "phone": "03457124397",
+    "password": "$2a$10$N15brr5.JtEaXnuw2lxOr.sDHyodFYjshqfb6M28FacrLANxQb/Ha",
+    "role": "DRIVER",
+    "createdAt": "2026-06-15T12:55:21.131Z",
+    "verificationStatus": "APPROVED",
+    "documents": null
+  },
+  {
+    "id": "1781528587498",
+    "fullName": "Ehsan Driver",
+    "email": "ehsandriver@test.com",
+    "phone": "03001112222",
+    "password": "$2a$10$cjjjZh/jT.hGatoKuREOBOg3Z/XP82xR/fyOHAVLp49/j2e7SSZzu",
+    "role": "DRIVER",
+    "createdAt": "2026-06-15T13:03:07.498Z",
+    "verificationStatus": "APPROVED",
+    "documents": null
+  },
+  {
+    "id": "1781685468900",
+    "fullName": "ehsan",
+    "phone": "03457124397",
+    "email": "ehsanshahid5@gmail.com",
+    "password": "$2a$10$cs/PuJKBAcwNbsuXrcBnIuneOFQ4d5ITb7hW6uQuVGIP2UuXQoF2W",
+    "role": "MECHANIC",
+    "createdAt": "2026-06-17T08:37:48.900Z",
+    "verificationStatus": "PENDING",
+    "documents": {
+      "cnicFront": "WhatsApp Image 2026-06-16 at 2.51.03 PM.jpeg",
+      "cnicBack": "ChatGPT Image Jun 16, 2026, 12_04_33 PM.png",
+      "workshopPics": [
+        "images (1).jpg",
+        "images.jpg",
+        "images (2).jpg",
+        "download (2).jpg",
+        "images (4).jpg"
+      ],
+      "policeCert": "QUIZ 04 (1).pdf",
+      "uploadedAt": "2026-06-17T08:39:04.842Z"
+    },
+    "vehicles": []
+  }
+]
