@@ -7,20 +7,22 @@ import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Header } from '../../components/Header';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../../context/AuthContext';
+import { API_URL } from '../../config/api.config';
 
 export default function PrivacySecurityScreen({ navigation }) {
-  const { user, logout } = useAuth();
+  const { user, userToken, logout } = useAuth();
   const [locationSharing, setLocationSharing] = useState(true);
   const [twoFactor, setTwoFactor]             = useState(false);
   const [dataSharing, setDataSharing]         = useState(true);
 
-  // Change Password (UI only — backend TODO)
+  // Change Password
   const [showPwForm, setShowPwForm] = useState(false);
   const [currentPw, setCurrentPw]   = useState('');
   const [newPw, setNewPw]           = useState('');
   const [confirmPw, setConfirmPw]   = useState('');
+  const [pwLoading, setPwLoading]   = useState(false);
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (!currentPw || !newPw || !confirmPw) {
       Alert.alert('Error', 'Please fill all password fields.');
       return;
@@ -33,9 +35,34 @@ export default function PrivacySecurityScreen({ navigation }) {
       Alert.alert('Error', 'Password must be at least 6 characters.');
       return;
     }
-    Alert.alert('Success ✅', 'Password changed successfully!');
-    setShowPwForm(false);
-    setCurrentPw(''); setNewPw(''); setConfirmPw('');
+
+    setPwLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${userToken}`,
+        },
+        body: JSON.stringify({
+          currentPassword: currentPw,
+          newPassword: newPw,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        Alert.alert('Success ✅', 'Password changed successfully!');
+        setShowPwForm(false);
+        setCurrentPw(''); setNewPw(''); setConfirmPw('');
+      } else {
+        Alert.alert('Error', data.message || 'Failed to change password');
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Network error.');
+    } finally {
+      setPwLoading(false);
+    }
   };
 
   const handleDeleteAccount = () => {

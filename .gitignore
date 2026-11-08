@@ -40,3 +40,5 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+backend/android/app/debug.keystore

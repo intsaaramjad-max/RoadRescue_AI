@@ -12,6 +12,9 @@
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^9.7.0"
+    "mongoose": "^9.7.0",
+    "expo": "~56.0.7",
+    "react": "19.2.3",
+    "react-native": "0.85.3"
   }
 }

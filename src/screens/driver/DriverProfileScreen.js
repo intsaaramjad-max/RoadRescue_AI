@@ -12,18 +12,14 @@ import {
   Platform,
   RefreshControl,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, typography, spacing, borderRadius } from '../../theme/theme';
 import { useAuth } from '../../context/AuthContext';
-
-const API_URL = Platform.select({
-  ios: 'https://road-rescue-ai-poc2.vercel.app/api',
-  android: 'https://road-rescue-ai-poc2.vercel.app/api',
-  default: 'https://road-rescue-ai-poc2.vercel.app/api',
-});
+import { API_URL } from '../../config/api.config';
 
 const VEHICLE_TYPES = ['Car', 'Bike', 'Truck', 'Van', 'SUV'];
 const CAR_COLORS = ['White', 'Black', 'Silver', 'Red', 'Blue', 'Green', 'Grey', 'Other'];
@@ -128,6 +124,7 @@ function VehicleModal({ visible, onClose, onSave, editing }) {
   const [plate, setPlate]   = useState('');
   const [type, setType]     = useState('Car');
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     if (editing) {
@@ -137,16 +134,35 @@ function VehicleModal({ visible, onClose, onSave, editing }) {
     } else {
       setMake(''); setModel(''); setYear(''); setColor(''); setPlate(''); setType('Car');
     }
+    setSaveError('');
   }, [editing, visible]);
 
   const handleSave = async () => {
     if (!make.trim() || !model.trim() || !plate.trim()) {
-      Alert.alert('Required Fields', 'Please fill in Make, Model, and Plate Number.');
+      const message = 'Please fill in Make, Model, and Plate Number.';
+      setSaveError(message);
+      if (Platform.OS !== 'web') Alert.alert('Required Fields', message);
       return;
     }
+
     setSaving(true);
-    await onSave({ make, model, year, color, plateNumber: plate, vehicleType: type });
-    setSaving(false);
+    setSaveError('');
+    try {
+      await onSave({
+        make: make.trim(),
+        model: model.trim(),
+        year,
+        color,
+        plateNumber: plate.trim(),
+        vehicleType: type,
+      });
+    } catch (error) {
+      const message = error.message || 'Could not save vehicle. Please try again.';
+      setSaveError(message);
+      if (Platform.OS !== 'web') Alert.alert('Could not save vehicle', message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -214,6 +230,10 @@ function VehicleModal({ visible, onClose, onSave, editing }) {
               value={plate} onChangeText={t => setPlate(t.toUpperCase())}
               autoCapitalize="characters" />
 
+            {Platform.OS === 'web' && saveError ? (
+              <Text accessibilityRole="alert" style={mStyles.errorText}>{saveError}</Text>
+            ) : null}
+
             <TouchableOpacity
               style={[mStyles.saveBtn, saving && { opacity: 0.7 }]}
               onPress={handleSave} disabled={saving} activeOpacity={0.85}
@@ -244,9 +264,103 @@ const mStyles = StyleSheet.create({
   chipActive: { backgroundColor: 'rgba(249,115,22,0.15)', borderColor: '#F97316' },
   chipText: { color: '#94A3B8', fontSize: 13, fontWeight: '500' },
   chipTextActive: { color: '#F97316', fontWeight: '700' },
+  errorText: { color: '#FCA5A5', fontSize: 13, marginTop: 12 },
+  profileActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  cancelBtn: {
+    flex: 1, borderRadius: 14, paddingVertical: 15, alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  cancelBtnText: { color: '#CBD5E1', fontSize: 15, fontWeight: '700' },
+  profileSaveBtn: { flex: 1, marginTop: 0, marginBottom: 0 },
   saveBtn: { backgroundColor: '#F97316', borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 24, marginBottom: 8, shadowColor: '#F97316', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });
+
+function EditProfileModal({ visible, onClose, onSave, profile }) {
+  const { height: windowHeight } = useWindowDimensions();
+  const [fullName, setFullName] = useState(profile.fullName);
+  const [phone, setPhone] = useState(profile.phone);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (visible) {
+      setFullName(profile.fullName);
+      setPhone(profile.phone);
+      setError('');
+    }
+  }, [profile.fullName, profile.phone, visible]);
+
+  const handleSave = () => {
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
+      setError('Full Name is required.');
+      return;
+    }
+    onSave({ fullName: trimmedName, phone: phone.trim() });
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={mStyles.overlay}>
+        <View style={mStyles.sheet}>
+          <View style={mStyles.sheetHandle} />
+          <View style={mStyles.header}>
+            <Text style={mStyles.title}>Edit Profile</Text>
+            <TouchableOpacity onPress={onClose} style={mStyles.closeBtn} accessibilityRole="button">
+              <Ionicons name="close" size={22} color="#94A3B8" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            style={{ maxHeight: Math.max(140, windowHeight * 0.62) }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={mStyles.label}>Full Name *</Text>
+            <TextInput
+              style={mStyles.input}
+              placeholder="Enter your full name"
+              placeholderTextColor="#475569"
+              value={fullName}
+              onChangeText={setFullName}
+              autoCapitalize="words"
+              accessibilityLabel="Full Name"
+            />
+            <Text style={mStyles.label}>Phone Number</Text>
+            <TextInput
+              style={mStyles.input}
+              placeholder="Enter your phone number"
+              placeholderTextColor="#475569"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              accessibilityLabel="Phone Number"
+            />
+            {error ? <Text accessibilityRole="alert" style={mStyles.errorText}>{error}</Text> : null}
+            <View style={mStyles.profileActions}>
+              <TouchableOpacity
+                style={mStyles.cancelBtn}
+                onPress={onClose}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+              >
+                <Text style={mStyles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[mStyles.saveBtn, mStyles.profileSaveBtn]}
+                onPress={handleSave}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+              >
+                <Text style={mStyles.saveBtnText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DriverProfileScreen
@@ -254,14 +368,31 @@ const mStyles = StyleSheet.create({
 export default function DriverProfileScreen({ navigation }) {
   const { user, token, logout } = useAuth();
 
+  const [profileDetails, setProfileDetails] = useState({
+    fullName: user?.fullName || '',
+    phone: user?.phone || '',
+  });
   const [stats, setStats]       = useState({ totalRescues: 0, totalVehicles: 0, rating: 5.0 });
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal]   = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [activeTab, setActiveTab]   = useState('profile');
   const [profileImage, setProfileImage] = useState(null); // local URI of picked image
+
+  useEffect(() => {
+    setProfileDetails({
+      fullName: user?.fullName || '',
+      phone: user?.phone || '',
+    });
+  }, [user?.fullName, user?.phone]);
+
+  const handleSaveProfile = (updatedProfile) => {
+    setProfileDetails(updatedProfile);
+    setShowProfileModal(false);
+  };
 
   // ── Fetch profile ──────────────────────────────────────────────────────────
   const fetchProfile = useCallback(async () => {
@@ -269,12 +400,18 @@ export default function DriverProfileScreen({ navigation }) {
       const res = await fetch(`${API_URL}/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data.stats || stats);
-        setVehicles(data.user?.vehicles || []);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || `Profile request failed (${res.status})`);
       }
-    } catch (_) {}
+      setStats(data.stats || stats);
+      setVehicles(data.user?.vehicles || []);
+    } catch (error) {
+      Alert.alert(
+        'Could not load profile',
+        error.message || 'Please check your connection and try again.'
+      );
+    }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
@@ -312,18 +449,28 @@ export default function DriverProfileScreen({ navigation }) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(formData),
       });
-      const data = await res.json();
-      if (res.ok) {
-        Alert.alert(editingVehicle ? 'Updated! ✅' : 'Added! 🚗', data.message);
-        fetchProfile();
-      } else {
-        Alert.alert('Error', data.message || 'Something went wrong');
+      const responseBody = await res.text();
+      let data = {};
+      if (responseBody) {
+        try {
+          const parsed = JSON.parse(responseBody);
+          data = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? parsed
+            : { message: responseBody };
+        } catch {
+          data = { message: responseBody };
+        }
       }
-    } catch (_) {
-      Alert.alert('Error', 'Could not reach server. Please try again.');
-    } finally {
+      if (!res.ok) {
+        throw new Error(data.message || data.error || `Vehicle save failed (${res.status})`);
+      }
+
       setShowModal(false);
       setEditingVehicle(null);
+      Alert.alert(editingVehicle ? 'Vehicle updated' : 'Vehicle added', data.message);
+      await fetchProfile();
+    } catch (error) {
+      throw new Error(error.message || 'Please check your connection and try again.');
     }
   };
 
@@ -408,7 +555,7 @@ export default function DriverProfileScreen({ navigation }) {
             ) : (
               <View style={styles.avatarFallback}>
                 <Text style={styles.avatarLetter}>
-                  {user?.fullName?.charAt(0)?.toUpperCase() || 'D'}
+                  {profileDetails.fullName.charAt(0)?.toUpperCase() || 'D'}
                 </Text>
               </View>
             )}
@@ -419,7 +566,10 @@ export default function DriverProfileScreen({ navigation }) {
           </View>
 
           {/* Only name shown */}
-          <Text style={styles.heroName}>{user?.fullName || 'Driver'}</Text>
+          <Text style={styles.heroName}>{profileDetails.fullName || 'Driver'}</Text>
+          {profileDetails.phone ? (
+            <Text style={styles.heroPhone}>{profileDetails.phone}</Text>
+          ) : null}
 
           {/* Member since */}
           <View style={styles.memberRow}>
@@ -431,6 +581,15 @@ export default function DriverProfileScreen({ navigation }) {
                 : 'Today'}
             </Text>
           </View>
+          <TouchableOpacity
+            style={styles.editProfileBtn}
+            onPress={() => setShowProfileModal(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+          >
+            <Ionicons name="pencil" size={14} color="#FFF" />
+            <Text style={styles.editProfileTxt}>Edit Profile</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── STATS ── */}
@@ -555,6 +714,12 @@ export default function DriverProfileScreen({ navigation }) {
         onSave={handleSaveVehicle}
         editing={editingVehicle}
       />
+      <EditProfileModal
+        visible={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        onSave={handleSaveProfile}
+        profile={profileDetails}
+      />
     </ScreenWrapper>
   );
 }
@@ -586,8 +751,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4, shadowRadius: 4, elevation: 3,
   },
   heroName: { color: '#F8FAFC', fontSize: 22, fontWeight: '800', marginBottom: 6 },
+  heroPhone: { color: '#94A3B8', fontSize: 13, marginBottom: 6 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   memberText: { color: '#475569', fontSize: 12 },
+  editProfileBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    backgroundColor: '#1D4ED8', borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 10, marginTop: 14,
+    borderWidth: 1, borderColor: 'rgba(249,115,22,0.45)',
+  },
+  editProfileTxt: { color: '#FFF', fontSize: 13, fontWeight: '700' },
 
   // Stats
   statsCard: {

@@ -17,9 +17,9 @@ import { colors, typography, spacing, borderRadius } from '../../theme/theme';
 import { useAuth } from '../../context/AuthContext';
 
 const API_URL = Platform.select({
-  ios: 'https://road-rescue-ai-poc2.vercel.app/api',
-  android: 'https://road-rescue-ai-poc2.vercel.app/api',
-  default: 'https://road-rescue-ai-poc2.vercel.app/api',
+  android: 'http://10.0.2.2:5000/api',
+  ios: 'http://localhost:5000/api',
+  default: 'http://localhost:5000/api'
 });
 
 // Star Rating Component

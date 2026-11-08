@@ -37,7 +37,15 @@ const userSchema = new mongoose.Schema({
     policeCert: { type: String, default: null },
     uploadedAt: { type: String, default: null }
   },
-  vehicles: [vehicleSchema]
+  vehicles: [vehicleSchema],
+  isAvailable: { type: Boolean, default: true },
+  walletBalance: { type: Number, default: 0 },
+  isActive: { type: Boolean, default: true },
+  verifiedAt: { type: String, default: null },
+  updatedAt: { type: String, default: null },
+  deletedAt: { type: String, default: null },
+  otpCode: { type: String, default: null },
+  otpExpiry: { type: String, default: null },
 }, {
   timestamps: true
 });

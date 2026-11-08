@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Alert,
+  Image,
 } from 'react-native';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -16,9 +18,9 @@ import { colors, typography, spacing, borderRadius } from '../../theme/theme';
 import { useAuth } from '../../context/AuthContext';
 
 const API_URL = Platform.select({
-  ios: 'https://road-rescue-ai-poc2.vercel.app/api',
-  android: 'https://road-rescue-ai-poc2.vercel.app/api',
-  default: 'https://road-rescue-ai-poc2.vercel.app/api',
+  android: 'http://10.0.2.2:5000/api',
+  ios: 'http://localhost:5000/api',
+  default: 'http://localhost:5000/api'
 });
 
 // Format timestamp to short time string
@@ -28,15 +30,20 @@ const formatTime = (iso) => {
 };
 
 // Individual message bubble
-function MessageBubble({ message, isMe }) {
+function MessageBubble({ message, isMe, senderName, recipientImage }) {
   return (
     <View style={[bubbleStyles.wrapper, isMe ? bubbleStyles.wrapperRight : bubbleStyles.wrapperLeft]}>
       {!isMe && (
         <View style={bubbleStyles.avatar}>
-          <Ionicons name="construct" size={14} color="#FFF" />
+          {recipientImage ? (
+            <Image source={{ uri: recipientImage }} style={bubbleStyles.avatarImage} />
+          ) : (
+            <Text style={bubbleStyles.avatarInitial}>{senderName?.charAt(0)?.toUpperCase() || '?'}</Text>
+          )}
         </View>
       )}
       <View style={[bubbleStyles.bubble, isMe ? bubbleStyles.bubbleMe : bubbleStyles.bubbleOther]}>
+        <Text style={[bubbleStyles.senderName, isMe && bubbleStyles.senderNameMe]}>{senderName}</Text>
         <Text style={[bubbleStyles.text, isMe ? bubbleStyles.textMe : bubbleStyles.textOther]}>
           {message.text}
         </Text>
@@ -72,6 +79,8 @@ const bubbleStyles = StyleSheet.create({
     marginRight: 6,
     marginBottom: 4,
   },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 14 },
+  avatarInitial: { color: '#FFF', fontSize: 12, fontWeight: '700' },
   bubble: {
     maxWidth: '75%',
     borderRadius: 18,
@@ -89,6 +98,8 @@ const bubbleStyles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   text: { fontSize: 14, lineHeight: 20 },
+  senderName: { color: '#93C5FD', fontSize: 10, fontWeight: '700', marginBottom: 3 },
+  senderNameMe: { color: 'rgba(255,255,255,0.82)' },
   textMe: { color: '#FFF', fontWeight: '500' },
   textOther: { color: '#E2E8F0' },
   timeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
@@ -96,36 +107,63 @@ const bubbleStyles = StyleSheet.create({
 });
 
 export default function ChatScreen({ route, navigation }) {
-  const { user, token } = useAuth();
+  const { user, userRole, token } = useAuth();
+  const routeParams = route?.params || {};
+  const request = routeParams.request || routeParams.requestData || {};
+  const requestId = routeParams.requestId || request.id || request._id;
+  const currentRole = (user?.role || userRole || 'DRIVER').toUpperCase();
+  const ownName = user?.fullName?.trim() || '';
+  const nameCandidates = currentRole === 'DRIVER'
+    ? [
+      routeParams.mechanicName,
+      routeParams.mechanicFullName,
+      routeParams.recipientName,
+      routeParams.mechanic?.fullName,
+      routeParams.assignedMechanic?.fullName,
+      request.mechanic?.fullName,
+      request.assignedMechanic?.fullName,
+      request.mechanicFullName,
+      request.mechanicName,
+    ]
+    : [
+      routeParams.driverName,
+      routeParams.customerName,
+      routeParams.recipientName,
+      routeParams.driver?.fullName,
+      routeParams.customer?.fullName,
+      request.driverName,
+      request.customerName,
+      request.driver?.fullName,
+      request.customer?.fullName,
+    ];
+  const recipientName = nameCandidates
+    .find((name) => typeof name === 'string'
+      && name.trim()
+      && !name.includes('@')
+      && name.trim().toLowerCase() !== ownName.toLowerCase())?.trim()
+    || (currentRole === 'DRIVER' ? 'Assigned service provider' : 'Customer');
+  const recipient = currentRole === 'DRIVER'
+    ? routeParams.mechanic || routeParams.assignedMechanic || request.mechanic || request.assignedMechanic || {}
+    : routeParams.driver || routeParams.customer || request.driver || request.customer || {};
+  const recipientImage = [
+    routeParams.recipientImage,
+    routeParams.recipientPhoto,
+    routeParams.recipientAvatar,
+    routeParams.profileImage,
+    recipient.profileImage,
+    recipient.avatarUrl,
+    recipient.photoUrl,
+    recipient.imageUrl,
+  ].find((image) => typeof image === 'string' && image.trim()) || null;
 
-  const requestId = route?.params?.requestId || 'demo-chat';
-  const recipientName = route?.params?.recipientName || 'Mechanic';
-
-  const [messages, setMessages] = useState([
-    {
-      id: 'demo-1',
-      requestId,
-      senderId: 'mechanic-demo',
-      senderRole: 'MECHANIC',
-      text: 'Hello! I have accepted your request. I am on my way to your location. 🚗',
-      createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-      isRead: true,
-    },
-    {
-      id: 'demo-2',
-      requestId,
-      senderId: 'mechanic-demo',
-      senderRole: 'MECHANIC',
-      text: 'My ETA is approximately 12 minutes. Please stay near your vehicle.',
-      createdAt: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
-      isRead: true,
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   const flatListRef = useRef(null);
   const inputRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const scrollToBottom = () => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -135,15 +173,92 @@ export default function ChatScreen({ route, navigation }) {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    if (!requestId || !token) {
+      setMessages([]);
+      return undefined;
+    }
+
+    let active = true;
+    fetch(`${API_URL}/chat/${encodeURIComponent(requestId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Unable to load chat messages.');
+        return data;
+      })
+      .then((data) => {
+        if (active && Array.isArray(data.messages)) setMessages(data.messages);
+      })
+      .catch((error) => {
+        if (active) console.error('Failed to load chat messages:', error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [requestId, token]);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
+
+  const toggleVoiceInput = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SpeechRecognition = typeof window !== 'undefined'
+      ? window.SpeechRecognition || window.webkitSpeechRecognition
+      : null;
+
+    if (!SpeechRecognition) {
+      Alert.alert(
+        'Voice input unavailable',
+        'Voice input is supported in Chrome and Edge on the web.'
+      );
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0]?.transcript || '')
+        .join('');
+      setInputText((currentText) => `${currentText}${currentText ? ' ' : ''}${transcript}`);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
   const sendMessage = async () => {
     const text = inputText.trim();
     if (!text || sending) return;
+    if (!requestId) {
+      Alert.alert('Chat unavailable', 'Open chat from a service request to send a message.');
+      return;
+    }
 
     const optimisticMsg = {
       id: 'local-' + Date.now(),
       requestId,
       senderId: user?.id || 'local-user',
-      senderRole: user?.role || 'DRIVER',
+      senderRole: currentRole,
       text,
       createdAt: new Date().toISOString(),
       isRead: false,
@@ -184,10 +299,18 @@ export default function ChatScreen({ route, navigation }) {
           <Ionicons name="arrow-back" size={22} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerMeta}>
-          <View style={styles.onlineDot} />
+          <View style={styles.headerAvatar}>
+            {recipientImage ? (
+              <Image source={{ uri: recipientImage }} style={styles.headerAvatarImage} />
+            ) : (
+              <Text style={styles.headerAvatarInitial}>{recipientName.charAt(0).toUpperCase()}</Text>
+            )}
+          </View>
           <View>
             <Text style={styles.headerName}>{recipientName}</Text>
-            <Text style={styles.headerStatus}>Online • Service in Progress</Text>
+            <Text style={styles.headerStatus}>
+              {requestId ? `Service request ${requestId}` : 'Service participant'}
+            </Text>
           </View>
         </View>
         <TouchableOpacity style={styles.callBtn} activeOpacity={0.8}>
@@ -208,16 +331,25 @@ export default function ChatScreen({ route, navigation }) {
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
           onLayout={scrollToBottom}
-          renderItem={({ item }) => (
-            <MessageBubble
-              message={item}
-              isMe={item.senderId === (user?.id || 'local-user') || item.id.startsWith('local-')}
-            />
-          )}
+          renderItem={({ item }) => {
+            const isMe = item.senderRole
+              ? item.senderRole.toUpperCase() === currentRole
+              : item.senderId === (user?.id || 'local-user');
+            return (
+              <MessageBubble
+                message={item}
+                isMe={isMe}
+                senderName={isMe ? ownName || 'You' : recipientName}
+                recipientImage={isMe ? null : recipientImage}
+              />
+            );
+          }}
           ListEmptyComponent={
             <View style={styles.emptyChat}>
               <Ionicons name="chatbubbles-outline" size={48} color="#334155" />
-              <Text style={styles.emptyChatText}>No messages yet. Say hi! 👋</Text>
+              <Text style={styles.emptyChatText}>
+                {requestId ? 'No messages yet. Say hi!' : 'Open chat from a service request to start a conversation.'}
+              </Text>
             </View>
           }
         />
@@ -254,6 +386,15 @@ export default function ChatScreen({ route, navigation }) {
             onSubmitEditing={sendMessage}
           />
           <TouchableOpacity
+            style={[styles.voiceBtn, isListening && styles.voiceBtnActive]}
+            onPress={toggleVoiceInput}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={isListening ? 'Stop voice input' : 'Start voice input'}
+          >
+            <Ionicons name={isListening ? 'mic' : 'mic-outline'} size={20} color={isListening ? '#FFF' : '#F97316'} />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.sendBtn, (!inputText.trim() || sending) && styles.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={!inputText.trim() || sending}
@@ -289,20 +430,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  onlineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#10B981',
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 10,
   },
+  headerAvatarImage: { width: '100%', height: '100%', borderRadius: 20 },
+  headerAvatarInitial: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   headerName: {
     color: '#F8FAFC',
     fontSize: 16,
     fontWeight: '700',
   },
   headerStatus: {
-    color: '#10B981',
+    color: '#94A3B8',
     fontSize: 12,
     marginTop: 1,
   },
@@ -371,6 +516,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     marginRight: 10,
+  },
+  voiceBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(249,115,22,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.25)',
+    marginRight: 8,
+  },
+  voiceBtnActive: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
   },
   sendBtn: {
     width: 44,

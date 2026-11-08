@@ -7,6 +7,8 @@ import AdminDashboard from '../screens/admin/AdminDashboard';
 import UserManagementScreen from '../screens/admin/UserManagementScreen';
 import VerificationManagementScreen from '../screens/admin/VerificationManagementScreen';
 import RequestMonitoringScreen from '../screens/admin/RequestMonitoringScreen';
+import AdminOperationsScreen from '../screens/admin/AdminOperationsScreen';
+import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -26,6 +28,10 @@ export default function AdminNavigator() {
             iconName = focused ? 'checkmark-circle' : 'checkmark-circle-outline';
           } else if (route.name === 'Requests') {
             iconName = focused ? 'list' : 'list-outline';
+          } else if (route.name === 'Operations') {
+            iconName = focused ? 'analytics' : 'analytics-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -42,6 +48,8 @@ export default function AdminNavigator() {
       <Tab.Screen name="Users" component={UserManagementScreen} />
       <Tab.Screen name="Verifications" component={VerificationManagementScreen} />
       <Tab.Screen name="Requests" component={RequestMonitoringScreen} />
+      <Tab.Screen name="Operations" component={AdminOperationsScreen} options={{ title: 'Manage' }} />
+      <Tab.Screen name="Profile" component={AdminProfileScreen} />
     </Tab.Navigator>
   );
 }

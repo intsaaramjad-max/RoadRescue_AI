@@ -8,11 +8,13 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
-const cors    = require('cors');
+const cors = require('cors');
 const connectDB = require('./config/db');
 
 // Connect Database
-connectDB();
+(async () => {
+  await connectDB();
+})();
 
 // ── Import all routes from single api.js ──────────────────────────────────
 const {
@@ -24,9 +26,11 @@ const {
   profileRouter,
   earningsRouter,
   adminRouter,
+  supportRouter,
+  paymentRouter,
 } = require('./routes/api');
 
-const app  = express();
+const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ── Middleware ────────────────────────────────────────────────────────────
@@ -34,19 +38,21 @@ app.use(cors());
 app.use(express.json());
 
 // ── Mount Routes ──────────────────────────────────────────────────────────
-app.use('/api/auth',          authRouter);
-app.use('/api/requests',      requestRouter);
-app.use('/api/feedback',      feedbackRouter);
-app.use('/api/chat',          chatRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/requests', requestRouter);
+app.use('/api/feedback', feedbackRouter);
+app.use('/api/chat', chatRouter);
 app.use('/api/notifications', notifRouter);
-app.use('/api/profile',       profileRouter);
-app.use('/api/earnings',      earningsRouter);
-app.use('/api/admin',         adminRouter);
+app.use('/api/profile', profileRouter);
+app.use('/api/earnings', earningsRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/support', supportRouter);
+app.use('/api/payments', paymentRouter);
 
 // ── Health Check ──────────────────────────────────────────────────────────
 app.get('/', (_req, res) =>
   res.json({
-    status:  '✅ Running',
+    status: '✅ Running',
     service: 'RoadRescue AI Backend',
     version: '2.0.0',
     routes: [

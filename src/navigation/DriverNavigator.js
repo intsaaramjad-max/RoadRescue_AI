@@ -37,6 +37,7 @@ function DriverHomeStack() {
       <Stack.Screen name="LiveTracking"   component={LiveTrackingScreen} />
       <Stack.Screen name="Chat"           component={ChatScreen} />
       <Stack.Screen name="Feedback"       component={FeedbackScreen} />
+      <Stack.Screen name="Payment"        component={PaymentScreen} />
     </Stack.Navigator>
   );
 }

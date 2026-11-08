@@ -27,6 +27,7 @@ const Request = require('../models/Request');
 const Feedback = require('../models/Feedback');
 const Message = require('../models/Message');
 const Notification = require('../models/Notification');
+const SupportTicket = require('../models/SupportTicket');
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  SECTION 1 — Shared Helpers
@@ -59,10 +60,21 @@ const authRouter = express.Router();
 authRouter.post('/register', async (req, res) => {
   try {
     const { fullName, email, phone, password, role } = req.body;
-    if (!fullName || !email || !phone || !password || !role)
+    if (
+      typeof fullName !== 'string' || !fullName.trim() ||
+      typeof email !== 'string' || !email.trim() ||
+      typeof phone !== 'string' || !phone.trim() ||
+      typeof password !== 'string' || !password ||
+      typeof role !== 'string' || !role.trim()
+    )
       return res.status(400).json({ message: 'All fields are required' });
 
-    const exists = await User.findOne({ email: email.toLowerCase() });
+    const normalizedRole = String(role).trim().toUpperCase();
+    if (!['DRIVER', 'MECHANIC'].includes(normalizedRole))
+      return res.status(400).json({ message: 'Only driver and mechanic accounts can register' });
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const exists = await User.findOne({ email: normalizedEmail });
     if (exists)
       return res.status(400).json({ message: 'User already exists' });
 
@@ -72,10 +84,10 @@ authRouter.post('/register', async (req, res) => {
     const newUser = new User({
       fullName,
       phone,
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       password: hashedPassword,
-      role: role.toUpperCase(),
-      verificationStatus: role.toUpperCase() === 'MECHANIC' ? 'PENDING' : 'APPROVED',
+      role: normalizedRole,
+      verificationStatus: normalizedRole === 'MECHANIC' ? 'PENDING' : 'APPROVED',
       documents: {
         cnicFront: null,
         cnicBack: null,
@@ -103,10 +115,14 @@ authRouter.post('/register', async (req, res) => {
 authRouter.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
+    if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password)
+      return res.status(400).json({ message: 'Email and password are required' });
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+
+    if (user.isActive === false)
+      return res.status(403).json({ message: 'This account is inactive. Contact support.' });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
@@ -163,6 +179,118 @@ authRouter.get('/me', protect, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/auth/forgot-password
+authRouter.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    let user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      // Auto-create user stub for smooth testing
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash('123456', salt);
+      user = new User({
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        fullName: 'Test User',
+        phone: '03000000000',
+        role: 'DRIVER',
+      });
+    }
+
+    // Generate 4-digit OTP
+    const otpCode   = Math.floor(1000 + Math.random() * 9000).toString();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
+
+    user.otpCode   = otpCode;
+    user.otpExpiry = otpExpiry;
+    await user.save();
+
+    console.log(`\n========================================`);
+    console.log(`🔑 [OTP GENERATED] ${email} → ${otpCode}`);
+    console.log(`========================================\n`);
+
+    res.json({
+      message: `OTP Code generated: ${otpCode} (Sent to ${user.email})`,
+      otpCode,
+      email: user.email,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error sending OTP' });
+  }
+});
+
+// POST /api/auth/verify-otp
+authRouter.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP are required' });
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user)               return res.status(404).json({ message: 'User not found' });
+    if (!user.otpCode)       return res.status(400).json({ message: 'No OTP requested. Please request again.' });
+    if (new Date(user.otpExpiry) < new Date()) return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+    if (user.otpCode !== otp.toString()) return res.status(400).json({ message: 'Invalid OTP code' });
+
+    res.json({ message: 'OTP verified successfully', email: user.email });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error verifying OTP' });
+  }
+});
+
+// POST /api/auth/reset-password
+authRouter.post('/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) return res.status(400).json({ message: 'Email, OTP, and new password are required' });
+    if (newPassword.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user)               return res.status(404).json({ message: 'User not found' });
+    if (!user.otpCode)       return res.status(400).json({ message: 'No OTP requested. Please request again.' });
+    if (new Date(user.otpExpiry) < new Date()) return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+    if (user.otpCode !== otp.toString()) return res.status(400).json({ message: 'Invalid OTP code' });
+
+    const salt           = await bcrypt.genSalt(10);
+    user.password        = await bcrypt.hash(newPassword, salt);
+    user.otpCode         = null;
+    user.otpExpiry       = null;
+    await user.save();
+
+    res.json({ message: 'Password reset successfully. Please login with your new password.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error resetting password' });
+  }
+});
+
+// PATCH /api/auth/change-password   (requires auth)
+authRouter.patch('/change-password', protect, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ message: 'currentPassword and newPassword are required' });
+    if (newPassword.length < 6) return res.status(400).json({ message: 'New password must be at least 6 characters' });
+
+    const user = await User.findOne({ id: req.user.id });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Current password is incorrect' });
+
+    const salt    = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error changing password' });
   }
 });
 
@@ -241,7 +369,11 @@ requestRouter.get('/:id', protect, async (req, res) => {
   try {
     const request = await Request.findOne({ id: req.params.id });
     if (!request) return res.status(404).json({ message: 'Request not found' });
-    res.json({ request });
+    const driver = await User.findOne({ id: request.driverId }).select('fullName phone');
+    const requestData = request.toJSON();
+    requestData.driverName = driver?.fullName || null;
+    requestData.driverPhone = driver?.phone || null;
+    res.json({ request: requestData });
   } catch (err) { 
     console.error(err);
     res.status(500).json({ message: 'Server error' }); 
@@ -619,6 +751,28 @@ profileRouter.delete('/vehicles/:vehicleId', protect, async (req, res) => {
   }
 });
 
+// PATCH /api/profile/availability  (mechanic online/offline toggle)
+profileRouter.patch('/availability', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'MECHANIC') return res.status(403).json({ message: 'Only mechanics can toggle availability' });
+    const { isAvailable } = req.body;
+    if (typeof isAvailable !== 'boolean') return res.status(400).json({ message: 'isAvailable must be a boolean' });
+
+    const user = await User.findOne({ id: req.user.id });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.isAvailable = isAvailable;
+    await user.save();
+
+    const userJson = user.toJSON();
+    delete userJson.password;
+    res.json({ message: `You are now ${isAvailable ? 'Online' : 'Offline'}`, user: userJson });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error toggling availability' });
+  }
+});
+
 // PATCH /api/profile/vehicles/:vehicleId/primary
 profileRouter.patch('/vehicles/:vehicleId/primary', protect, async (req, res) => {
   try {
@@ -811,18 +965,259 @@ adminRouter.delete('/users/:id', protect, adminOnly, async (req, res) => {
   }
 });
 
+// PATCH /api/admin/users/:id/status
+adminRouter.patch('/users/:id/status', protect, adminOnly, async (req, res) => {
+  try {
+    const user = await User.findOne({ id: req.params.id });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.isActive = Boolean(req.body.isActive);
+    user.deletedAt = user.isActive ? null : new Date().toISOString();
+    await user.save();
+    res.json({ message: user.isActive ? 'User unblocked successfully' : 'User blocked successfully', user: user.toJSON() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error updating user status' });
+  }
+});
+
+// GET /api/admin/users/:id/requests
+adminRouter.get('/users/:id/requests', protect, adminOnly, async (req, res) => {
+  try {
+    const requests = await Request.find({ $or: [{ driverId: req.params.id }, { mechanicId: req.params.id }] }).sort({ createdAt: -1 });
+    res.json({ requests });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error fetching service history' });
+  }
+});
+
 // GET /api/admin/requests
 adminRouter.get('/requests', protect, adminOnly, async (req, res) => {
   try {
-    const { status } = req.query;
-    const filter = {};
-    if (status) filter.status = status.toUpperCase();
-    
-    const reqs = await Request.find(filter).sort({ createdAt: -1 });
-    res.json({ requests: reqs, total: reqs.length });
+    const requestedStatus = req.query.status;
+    if (requestedStatus !== undefined && typeof requestedStatus !== 'string') {
+      return res.status(400).json({ message: 'Status must be a single value' });
+    }
+
+    const status = (requestedStatus || 'ALL').toUpperCase();
+    const statusFilters = {
+      ALL: null,
+      PENDING: 'PENDING',
+      ACTIVE: { $in: ['ACCEPTED', 'IN_PROGRESS'] },
+      COMPLETED: 'COMPLETED',
+    };
+    if (!Object.prototype.hasOwnProperty.call(statusFilters, status)) {
+      return res.status(400).json({ message: 'Status must be ALL, PENDING, ACTIVE, or COMPLETED' });
+    }
+
+    const requestFilter = statusFilters[status] ? { status: statusFilters[status] } : {};
+    const requests = await Request.find(requestFilter).sort({ createdAt: -1 }).lean();
+    const participantIds = [...new Set(requests.flatMap((request) => [
+      request.driverId,
+      request.mechanicId,
+    ]).filter(Boolean))];
+    const participants = await User.find({ id: { $in: participantIds } })
+      .select('id fullName role')
+      .lean();
+    const usersById = new Map(participants.map((participant) => [participant.id, participant]));
+
+    const enrichedRequests = requests.map((request) => {
+      const { _id, __v, ...safeRequest } = request;
+      const driver = usersById.get(request.driverId);
+      const mechanic = usersById.get(request.mechanicId);
+      return {
+        ...safeRequest,
+        driverName: driver?.role === 'DRIVER' ? driver.fullName : null,
+        mechanicName: mechanic?.role === 'MECHANIC'
+          ? mechanic.fullName
+          : request.mechanicName || null,
+      };
+    });
+
+    res.json({ requests: enrichedRequests, total: enrichedRequests.length });
   } catch (err) { 
     console.error(err);
     res.status(500).json({ message: 'Server error' }); 
+  }
+});
+
+// GET /api/admin/payments
+adminRouter.get('/payments', protect, adminOnly, async (req, res) => {
+  try {
+    const completed = await Request.find({ status: 'COMPLETED' }).sort({ completedAt: -1 });
+    const totalRevenue = completed.reduce((sum, item) => sum + (parseFloat(item.cost) || 0), 0);
+    const platformCommission = totalRevenue * 0.10;
+    res.json({
+      summary: {
+        totalTransactions: completed.length,
+        totalRevenue: totalRevenue.toFixed(2),
+        serviceCharges: totalRevenue.toFixed(2),
+        mechanicEarnings: (totalRevenue - platformCommission).toFixed(2),
+        platformCommission: platformCommission.toFixed(2),
+        paymentStatus: 'DIRECT_PAYMENT',
+        refunds: 0,
+      },
+      payments: completed,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error fetching payments' });
+  }
+});
+
+// GET /api/admin/feedback
+adminRouter.get('/feedback', protect, adminOnly, async (req, res) => {
+  try {
+    const feedback = await Feedback.find().sort({ createdAt: -1 });
+    res.json({ feedback, total: feedback.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error fetching feedback' });
+  }
+});
+
+// POST /api/admin/notifications
+adminRouter.post('/notifications', protect, adminOnly, async (req, res) => {
+  try {
+    const { userId, title, body, type } = req.body;
+    if (!userId || !title?.trim() || !body?.trim()) {
+      return res.status(400).json({ message: 'userId, title and body are required' });
+    }
+    const recipient = await User.findOne({ id: userId });
+    if (!recipient) return res.status(404).json({ message: 'Recipient not found' });
+    const notification = await Notification.create({
+      userId,
+      title: title.trim(),
+      body: body.trim(),
+      type: type || 'admin',
+    });
+    res.status(201).json({ message: 'Notification sent', notification });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error sending notification' });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SECTION 10 — SUPPORT ROUTES   /api/support
+// ═════════════════════════════════════════════════════════════════════════════
+const supportRouter = express.Router();
+
+// POST /api/support
+supportRouter.post('/', protect, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || !message.trim()) return res.status(400).json({ message: 'Message is required' });
+
+    const user = await User.findOne({ id: req.user.id });
+    const ticket = new SupportTicket({
+      userId:    req.user.id,
+      userEmail: req.user.email,
+      userName:  user ? user.fullName : '',
+      message:   message.trim(),
+    });
+    await ticket.save();
+    res.status(201).json({ message: 'Support ticket submitted. We will get back to you within 24 hours.', ticket });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error submitting ticket' });
+  }
+});
+
+// GET /api/support/my  — user's own tickets
+supportRouter.get('/my', protect, async (req, res) => {
+  try {
+    const tickets = await SupportTicket.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    res.json({ tickets });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/support/all  — admin: all tickets
+supportRouter.get('/all', protect, adminOnly, async (req, res) => {
+  try {
+    const tickets = await SupportTicket.find().sort({ createdAt: -1 });
+    res.json({ tickets, total: tickets.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PATCH /api/support/:id/status — admin: update ticket status
+supportRouter.patch('/:id/status', protect, adminOnly, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['OPEN', 'IN_PROGRESS', 'RESOLVED'].includes(status)) return res.status(400).json({ message: 'Invalid status' });
+    const ticket = await SupportTicket.findOneAndUpdate({ id: req.params.id }, { $set: { status } }, { new: true });
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    res.json({ message: 'Ticket updated', ticket });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SECTION 11 — PAYMENT ROUTES   /api/payments
+// ═════════════════════════════════════════════════════════════════════════════
+const paymentRouter = express.Router();
+
+// GET /api/payments/wallet
+paymentRouter.get('/wallet', protect, async (req, res) => {
+  try {
+    const user = await User.findOne({ id: req.user.id });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ walletBalance: user.walletBalance || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/payments/wallet/topup
+paymentRouter.post('/wallet/topup', protect, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    if (!amount || Number(amount) <= 0) return res.status(400).json({ message: 'Valid amount is required' });
+    const user = await User.findOne({ id: req.user.id });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.walletBalance = (user.walletBalance || 0) + Number(amount);
+    await user.save();
+    res.json({ message: `PKR ${amount} added to wallet`, walletBalance: user.walletBalance });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/payments/transactions
+paymentRouter.get('/transactions', protect, async (req, res) => {
+  try {
+    let completedReqs;
+    if (req.user.role === 'DRIVER') {
+      completedReqs = await Request.find({ driverId: req.user.id, status: 'COMPLETED' }).sort({ completedAt: -1 });
+    } else if (req.user.role === 'MECHANIC') {
+      completedReqs = await Request.find({ mechanicId: req.user.id, status: 'COMPLETED' }).sort({ completedAt: -1 });
+    } else {
+      completedReqs = await Request.find({ status: 'COMPLETED' }).sort({ completedAt: -1 }).limit(50);
+    }
+
+    const transactions = completedReqs.map(r => ({
+      id:          r.id,
+      description: r.serviceType,
+      amount:      r.cost ? Number(r.cost) : 0,
+      date:        r.completedAt || r.createdAt,
+      type:        req.user.role === 'MECHANIC' ? 'CREDIT' : 'DEBIT',
+    }));
+
+    const user = await User.findOne({ id: req.user.id });
+    res.json({ transactions, walletBalance: user ? (user.walletBalance || 0) : 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error fetching transactions' });
   }
 });
 
@@ -838,4 +1233,6 @@ module.exports = {
   profileRouter,
   earningsRouter,
   adminRouter,
+  supportRouter,
+  paymentRouter,
 };

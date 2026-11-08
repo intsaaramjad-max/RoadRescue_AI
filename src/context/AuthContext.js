@@ -1,15 +1,9 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from '../config/api.config';
 
 const AuthContext = createContext({});
-
-// Use local host machine IP address on Android Emulator, localhost for iOS/Web
-const API_URL = Platform.select({
-  ios: 'https://road-rescue-ai-poc2.vercel.app/api',
-  android: 'https://road-rescue-ai-poc2.vercel.app/api',
-  default: 'https://road-rescue-ai-poc2.vercel.app/api'
-});
+const LEGACY_DEMO_TOKEN = 'demo-token-123';
 
 export const AuthProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null);
@@ -25,6 +19,12 @@ export const AuthProvider = ({ children }) => {
         const persistedUser = await AsyncStorage.getItem('roadrescue_user');
         
         if (persistedToken && persistedUser) {
+          if (persistedToken === LEGACY_DEMO_TOKEN) {
+            await AsyncStorage.removeItem('roadrescue_token');
+            await AsyncStorage.removeItem('roadrescue_user');
+            return;
+          }
+
           const parsedUser = JSON.parse(persistedUser);
           setToken(persistedToken);
           setUser(parsedUser);
@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
           
           // Background sync profile status
           try {
-            const response = await fetch(`${API_URL}/auth/profile`, {
+            const response = await fetch(`${API_URL}/auth/me`, {
               method: 'GET',
               headers: {
                 'Authorization': `Bearer ${persistedToken}`
@@ -96,8 +96,8 @@ export const AuthProvider = ({ children }) => {
       }
       return data;
     } catch (error) {
-      console.error(error);
-      throw error;
+      console.error('Registration error:', error.message);
+      throw error; // re-throw so SignUpScreen shows the real error alert
     }
   };
 
@@ -116,19 +116,52 @@ export const AuthProvider = ({ children }) => {
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
       }
+      if (
+        typeof data.token !== 'string' ||
+        !data.token.trim() ||
+        data.token === LEGACY_DEMO_TOKEN ||
+        !data.user?.id ||
+        !data.user?.role
+      ) {
+        throw new Error('The server did not return a valid authenticated session.');
+      }
 
-      setToken(data.token);
+      setToken(data.token.trim());
       setUserRole(data.user.role);
       setUser(data.user);
-      
+
       // Persist to storage
-      await AsyncStorage.setItem('roadrescue_token', data.token);
+      await AsyncStorage.setItem('roadrescue_token', data.token.trim());
       await AsyncStorage.setItem('roadrescue_user', JSON.stringify(data.user));
       return data;
     } catch (error) {
-      console.error(error);
       throw error;
     }
+  };
+
+  const updateUserProfile = async (profile) => {
+    if (!token) throw new Error('You must be signed in to update your profile.');
+
+    const response = await fetch(`${API_URL}/profile`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(profile),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || `Profile update failed (${response.status})`);
+    }
+    if (!data.user?.id || !data.user?.role) {
+      throw new Error('The server returned an invalid profile response.');
+    }
+
+    setUser(data.user);
+    await AsyncStorage.setItem('roadrescue_user', JSON.stringify(data.user));
+    return data.user;
   };
 
   // Upload documents (Protected)
@@ -181,6 +214,7 @@ export const AuthProvider = ({ children }) => {
       isLoading, 
       register, 
       login, 
+      updateUserProfile,
       uploadDocs, 
       logout 
     }}>

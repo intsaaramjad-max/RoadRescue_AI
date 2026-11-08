@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  View, 
+import {
+  View,
   Text,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   ActivityIndicator,
@@ -17,6 +16,11 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../../context/AuthContext';
+import { ScreenWrapper } from '../../components/ScreenWrapper';
+import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
+import { Card } from '../../components/Card';
+import { colors, spacing } from '../../theme/theme';
 const showAlert = (title, message) => {
   if (Platform.OS === 'web') {
     alert(`${title}\n\n${message}`);
@@ -32,18 +36,17 @@ const SignUpScreen = ({ navigation }) => {
   const [role, setRole] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   // Auth context & API states
   const { register, uploadDocs } = useAuth();
   const [loading, setLoading] = useState(false);
-  
+
   // Local Form Inputs state bindings
   const [fullName, setFullName] = useState('');
   const [emailVal, setEmailVal] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [focusedField, setFocusedField] = useState(null);
 
   // Mechanic Document Verification States
   const [cnicFront, setCnicFront] = useState(null);
@@ -87,7 +90,7 @@ const SignUpScreen = ({ navigation }) => {
 
   const handleStep2Submit = async () => {
     if (!validateStep2()) return;
-    
+
     setLoading(true);
     try {
       await register(
@@ -97,7 +100,7 @@ const SignUpScreen = ({ navigation }) => {
         password,
         role
       );
-      
+
       if (role === 'DRIVER') {
         navigation.navigate('OtpVerification');
       } else {
@@ -115,11 +118,11 @@ const SignUpScreen = ({ navigation }) => {
       showAlert('Incomplete Documents', 'Please upload CNIC Front/Back, 5 Workshop pictures, and a character certificate.');
       return;
     }
-    
+
     setLoading(true);
     try {
       await uploadDocs(cnicFront, cnicBack, workshopPics, policeCert);
-      setStep(4);
+      navigation.navigate('FaceVerification'); // open face scan after docs
     } catch (error) {
       showAlert('Upload Failed', error.message || 'An error occurred during document upload.');
     } finally {
@@ -135,22 +138,22 @@ const SignUpScreen = ({ navigation }) => {
         type: fileType,
         copyToCacheDirectory: true
       });
-      
+
       setUploadingField(null);
-      
+
       let selectedFile = null;
       if (result.canceled === false && result.assets && result.assets.length > 0) {
         selectedFile = result.assets[0];
       } else if (result.type === 'success') {
         selectedFile = result;
       }
-      
+
       if (!selectedFile) {
         return; // User cancelled
       }
-      
+
       const fileName = selectedFile.name || 'document_file.jpg';
-      
+
       if (field === 'cnicFront') {
         setCnicFront(fileName);
       } else if (field === 'cnicBack') {
@@ -184,20 +187,25 @@ const SignUpScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      {/* Dark Blue Background Gradient */}
+    <ScreenWrapper useSafeArea={false}>
       <LinearGradient
-        colors={['#071022', '#0d1b3e', '#162b66']}
+        colors={[colors.background, '#0d1b3e', colors.secondaryDark]}
         start={{ x: 0.1, y: 0.1 }}
         end={{ x: 0.9, y: 0.9 }}
         style={StyleSheet.absoluteFill}
       />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <BlurView intensity={60} tint="dark" style={styles.glassCard}>
-          
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        >
+          <BlurView intensity={60} tint="dark" style={styles.glassCard}>
+
           {/* Header styled like the image layout */}
           <View style={styles.header}>
             {step === 2 && (
@@ -209,7 +217,7 @@ const SignUpScreen = ({ navigation }) => {
               {step === 1 ? 'Choose Account' : step === 2 ? 'Sign Up' : step === 3 ? 'Verification' : 'Status'}
             </Text>
           </View>
-          
+
           {step === 1 ? (
             <View style={styles.roleSelectionContainer}>
               <Text style={styles.sectionTitle}>Choose your account type</Text>
@@ -217,208 +225,205 @@ const SignUpScreen = ({ navigation }) => {
                 Choose your account type to get started with personalized road rescue services.
               </Text>
 
-              <View style={[styles.cardsRow, { gap: isSmallDevice ? 6 : 10 }]}>
+              <View style={[styles.cardsRow, { flexDirection: isSmallDevice ? 'column' : 'row', gap: isSmallDevice ? spacing.md : spacing.sm }]}>
                 {/* Driver Card */}
-                <View style={[styles.cardContainer, { padding: isSmallDevice ? 8 : 12 }]}>
+                <Card
+                  padded={false}
+                  style={[styles.cardContainer, isSmallDevice && styles.cardContainerSmall]}
+                >
                   <View style={[styles.cardHeaderRow, { marginBottom: isSmallDevice ? 10 : 14 }]}>
                     <View style={[styles.cardIconCircle, { width: isSmallDevice ? 40 : 46, height: isSmallDevice ? 40 : 46, borderRadius: isSmallDevice ? 20 : 23, marginBottom: isSmallDevice ? 6 : 10 }]}>
                       <Ionicons name="car-sport" size={isSmallDevice ? 20 : 24} color="#FF7A00" />
                     </View>
                     <View style={styles.cardHeaderTextContainer}>
-                      <Text style={[styles.cardRoleTitle, { fontSize: isSmallDevice ? 13 : 15 }]}>I'm a Driver</Text>
-                      <Text style={[styles.cardRoleSubtitle, { fontSize: isSmallDevice ? 9.5 : 11, height: isSmallDevice ? 26 : 32 }]}>
+                      <Text style={[styles.cardRoleTitle, { fontSize: isSmallDevice ? 15 : 16 }]}>I'm a Driver</Text>
+                      <Text style={[styles.cardRoleSubtitle, { fontSize: isSmallDevice ? 12 : 13, minHeight: isSmallDevice ? 0 : 32 }]}>
                         Get roadside help instantly.
                       </Text>
                     </View>
                   </View>
-                  
+
                   <View style={styles.featuresList}>
                     <View style={styles.featureItem}>
                       <Ionicons name="checkmark-circle" size={isSmallDevice ? 12 : 14} color="#FF7A00" style={styles.featureCheck} />
-                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 9 : 10 }]}>Instant roadside help</Text>
+                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 12 : 13 }]}>Instant roadside help</Text>
                     </View>
                     <View style={styles.featureItem}>
                       <Ionicons name="checkmark-circle" size={isSmallDevice ? 12 : 14} color="#FF7A00" style={styles.featureCheck} />
-                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 9 : 10 }]}>AI-powered diagnostics</Text>
+                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 12 : 13 }]}>AI-powered diagnostics</Text>
                     </View>
                     <View style={styles.featureItem}>
                       <Ionicons name="checkmark-circle" size={isSmallDevice ? 12 : 14} color="#FF7A00" style={styles.featureCheck} />
-                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 9 : 10 }]}>Live mechanic tracking</Text>
+                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 12 : 13 }]}>Live mechanic tracking</Text>
                     </View>
                     <View style={styles.featureItem}>
                       <Ionicons name="checkmark-circle" size={isSmallDevice ? 12 : 14} color="#FF7A00" style={styles.featureCheck} />
-                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 9 : 10 }]}>Secure payments</Text>
+                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 12 : 13 }]}>Secure payments</Text>
                     </View>
                   </View>
 
-                  <TouchableOpacity 
-                    style={[styles.roleContinueBtn, { paddingVertical: isSmallDevice ? 6 : 9, borderRadius: isSmallDevice ? 8 : 10 }]}
+                  <Button
+                    title="Continue as Driver"
                     onPress={() => {
                       setRole('DRIVER');
                       setStep(2);
                     }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.roleContinueBtnText, { fontSize: isSmallDevice ? 10.5 : 12 }]}>Continue as Driver</Text>
-                  </TouchableOpacity>
-                </View>
+                    size="sm"
+                    style={styles.roleContinueBtn}
+                    textStyle={styles.roleContinueBtnText}
+                  />
+                </Card>
 
                 {/* Mechanic Card */}
-                <View style={[styles.cardContainer, { padding: isSmallDevice ? 8 : 12 }]}>
+                <Card
+                  padded={false}
+                  style={[styles.cardContainer, isSmallDevice && styles.cardContainerSmall]}
+                >
                   <View style={[styles.cardHeaderRow, { marginBottom: isSmallDevice ? 10 : 14 }]}>
                     <View style={[styles.cardIconCircle, { width: isSmallDevice ? 40 : 46, height: isSmallDevice ? 40 : 46, borderRadius: isSmallDevice ? 20 : 23, marginBottom: isSmallDevice ? 6 : 10 }]}>
                       <Ionicons name="construct" size={isSmallDevice ? 20 : 24} color="#FF7A00" />
                     </View>
                     <View style={styles.cardHeaderTextContainer}>
-                      <Text style={[styles.cardRoleTitle, { fontSize: isSmallDevice ? 13 : 15 }]}>I'm a Mechanic</Text>
-                      <Text style={[styles.cardRoleSubtitle, { fontSize: isSmallDevice ? 9.5 : 11, height: isSmallDevice ? 26 : 32 }]}>
+                      <Text style={[styles.cardRoleTitle, { fontSize: isSmallDevice ? 15 : 16 }]}>I'm a Mechanic</Text>
+                      <Text style={[styles.cardRoleSubtitle, { fontSize: isSmallDevice ? 12 : 13, minHeight: isSmallDevice ? 0 : 32 }]}>
                         Provide help & earn money.
                       </Text>
                     </View>
                   </View>
-                  
+
                   <View style={styles.featuresList}>
                     <View style={styles.featureItem}>
                       <Ionicons name="checkmark-circle" size={isSmallDevice ? 12 : 14} color="#FF7A00" style={styles.featureCheck} />
-                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 9 : 10 }]}>Get nearby repair jobs</Text>
+                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 12 : 13 }]}>Get nearby repair jobs</Text>
                     </View>
                     <View style={styles.featureItem}>
                       <Ionicons name="checkmark-circle" size={isSmallDevice ? 12 : 14} color="#FF7A00" style={styles.featureCheck} />
-                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 9 : 10 }]}>Diagnostics dashboard</Text>
+                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 12 : 13 }]}>Diagnostics dashboard</Text>
                     </View>
                     <View style={styles.featureItem}>
                       <Ionicons name="checkmark-circle" size={isSmallDevice ? 12 : 14} color="#FF7A00" style={styles.featureCheck} />
-                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 9 : 10 }]}>Flexible work hours</Text>
+                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 12 : 13 }]}>Flexible work hours</Text>
                     </View>
                     <View style={styles.featureItem}>
                       <Ionicons name="checkmark-circle" size={isSmallDevice ? 12 : 14} color="#FF7A00" style={styles.featureCheck} />
-                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 9 : 10 }]}>Direct driver chat</Text>
+                      <Text style={[styles.featureText, { fontSize: isSmallDevice ? 12 : 13 }]}>Direct driver chat</Text>
                     </View>
                   </View>
 
-                  <TouchableOpacity 
-                    style={[styles.roleContinueBtn, { paddingVertical: isSmallDevice ? 6 : 9, borderRadius: isSmallDevice ? 8 : 10 }]}
+                  <Button
+                    title="Continue as Mechanic"
                     onPress={() => {
                       setRole('MECHANIC');
                       setStep(2);
                     }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.roleContinueBtnText, { fontSize: isSmallDevice ? 10.5 : 12 }]}>Continue as Mech</Text>
-                  </TouchableOpacity>
-                </View>
+                    size="sm"
+                    style={styles.roleContinueBtn}
+                    textStyle={styles.roleContinueBtnText}
+                  />
+                </Card>
               </View>
 
               {/* Back to Login */}
-              <TouchableOpacity 
-                style={styles.backToLoginBtn} 
+              <TouchableOpacity
+                style={styles.backToLoginBtn}
                 onPress={() => navigation.navigate('Login')}
               >
                 <Text style={styles.backToLoginText}>Already have an account? Sign In</Text>
               </TouchableOpacity>
             </View>
           ) : step === 2 ? (
-            <View style={styles.formContainer}>
+            <View style={[styles.formContainer, isSmallDevice && styles.formContainerSmall]}>
               <View style={styles.selectedRoleBadge}>
-                <Ionicons 
-                  name={role === 'DRIVER' ? "car-sport" : "construct"} 
-                  size={18} 
-                  color="#FF7A00" 
-                  style={{ marginRight: 6 }} 
+                <Ionicons
+                  name={role === 'DRIVER' ? "car-sport" : "construct"}
+                  size={18}
+                  color="#FF7A00"
+                  style={{ marginRight: 6 }}
                 />
                 <Text style={styles.selectedRoleBadgeText}>
                   Signing up as {role === 'DRIVER' ? 'Driver' : 'Mechanic'}
                 </Text>
               </View>
 
-              {/* Inputs with icons on the right, like the image layout */}
-              <View style={[
-                styles.inputWrapper,
-                focusedField === 'fullName' && styles.inputWrapperFocused
-              ]}>
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="Full Name" 
-                  placeholderTextColor="#A0AEC0" 
-                  value={fullName}
-                  onChangeText={setFullName}
-                  onFocus={() => setFocusedField('fullName')}
-                  onBlur={() => setFocusedField(null)}
-                />
-                <Ionicons name="person" size={20} color="#FF7A00" style={styles.iconRight} />
-              </View>
-              
-              <View style={[
-                styles.inputWrapper,
-                focusedField === 'email' && styles.inputWrapperFocused
-              ]}>
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="Email Address" 
-                  keyboardType="email-address"
-                  placeholderTextColor="#A0AEC0" 
-                  value={emailVal}
-                  onChangeText={setEmailVal}
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => setFocusedField(null)}
-                />
-                <Ionicons name="mail" size={20} color="#FF7A00" style={styles.iconRight} />
-              </View>
+              <Input
+                label="Full Name"
+                placeholder="Enter your full name"
+                value={fullName}
+                onChangeText={setFullName}
+                icon={<Ionicons name="person-outline" size={19} color={colors.secondary} />}
+                style={styles.signupInput}
+                inputContainerStyle={styles.signupInputContainer}
+                inputStyle={styles.signupInputText}
+              />
 
-              <View style={[
-                styles.inputWrapper,
-                focusedField === 'phone' && styles.inputWrapperFocused
-              ]}>
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="Phone Number" 
-                  keyboardType="phone-pad"
-                  placeholderTextColor="#A0AEC0" 
-                  value={phone}
-                  onChangeText={setPhone}
-                  onFocus={() => setFocusedField('phone')}
-                  onBlur={() => setFocusedField(null)}
-                />
-                <Ionicons name="call" size={20} color="#FF7A00" style={styles.iconRight} />
-              </View>
+              <Input
+                label="Email Address"
+                placeholder="Enter your email"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={emailVal}
+                onChangeText={setEmailVal}
+                icon={<Ionicons name="mail-outline" size={19} color={colors.secondary} />}
+                style={styles.signupInput}
+                inputContainerStyle={styles.signupInputContainer}
+                inputStyle={styles.signupInputText}
+              />
 
-              <View style={[
-                styles.inputWrapper,
-                focusedField === 'password' && styles.inputWrapperFocused
-              ]}>
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="Password" 
-                  secureTextEntry={!showPassword}
-                  placeholderTextColor="#A0AEC0" 
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#d32f2f" style={styles.icon} />
-                </TouchableOpacity>
-              </View>
+              <Input
+                label="Phone Number"
+                placeholder="Enter your phone number"
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={setPhone}
+                icon={<Ionicons name="call-outline" size={19} color={colors.secondary} />}
+                style={styles.signupInput}
+                inputContainerStyle={styles.signupInputContainer}
+                inputStyle={styles.signupInputText}
+              />
 
-              <View style={[
-                styles.inputWrapper,
-                focusedField === 'confirmPassword' && styles.inputWrapperFocused
-              ]}>
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="Confirm Password" 
-                  secureTextEntry={!showConfirmPassword}
-                  placeholderTextColor="#A0AEC0" 
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  onFocus={() => setFocusedField('confirmPassword')}
-                  onBlur={() => setFocusedField(null)}
-                />
-                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                  <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={20} color="#d32f2f" style={styles.icon} />
-                </TouchableOpacity>
-              </View>
+              <Input
+                label="Password"
+                placeholder="Create a password"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                icon={<Ionicons name="lock-closed-outline" size={19} color={colors.secondary} />}
+                rightIcon={(
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.passwordToggle}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={19} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
+                style={styles.signupInput}
+                inputContainerStyle={styles.signupInputContainer}
+                inputStyle={styles.signupInputText}
+              />
+
+              <Input
+                label="Confirm Password"
+                placeholder="Re-enter your password"
+                secureTextEntry={!showConfirmPassword}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                icon={<Ionicons name="lock-closed-outline" size={19} color={colors.secondary} />}
+                rightIcon={(
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={styles.passwordToggle}
+                    accessibilityRole="button"
+                    accessibilityLabel={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <Ionicons name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'} size={19} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
+                style={styles.signupInput}
+                inputContainerStyle={styles.signupInputContainer}
+                inputStyle={styles.signupInputText}
+              />
 
               <TouchableOpacity
                 onPress={() => navigation.navigate('ForgotPassword')}
@@ -428,25 +433,22 @@ const SignUpScreen = ({ navigation }) => {
               </TouchableOpacity>
 
               {/* Links aligned to the left, Submit aligned to the right (like the image layout) */}
-              <View style={styles.bottomSection}>
+              <View style={[styles.bottomSection, isSmallDevice && styles.bottomSectionSmall]}>
                 <View style={styles.linksContainer}>
                   <TouchableOpacity onPress={() => navigation.navigate('Login')}>
                     <Text style={styles.linkText}>Already have an account?</Text>
                     <Text style={styles.linkText}>Sign In</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={styles.buttonContainer}>
-                  <TouchableOpacity 
-                    style={[styles.submitBtn, loading && styles.submitDocsBtnDisabled]}
+                <View style={[styles.buttonContainer, isSmallDevice && styles.buttonContainerSmall]}>
+                  <Button
+                    title="Continue"
                     onPress={handleStep2Submit}
                     disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <Text style={styles.submitBtnText}>Continue</Text>
-                    )}
-                  </TouchableOpacity>
+                    isLoading={loading}
+                    style={styles.submitBtn}
+                    textStyle={styles.submitBtnText}
+                  />
                 </View>
               </View>
             </View>
@@ -460,7 +462,7 @@ const SignUpScreen = ({ navigation }) => {
               {/* CNIC Upload Section */}
               <Text style={styles.uploadLabel}>CNIC Upload (Front & Back)</Text>
               <View style={styles.cnicRow}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.uploadBox, cnicFront && styles.uploadBoxCompleted]}
                   onPress={() => !cnicFront && handleUpload('cnicFront')}
                   activeOpacity={0.7}
@@ -483,7 +485,7 @@ const SignUpScreen = ({ navigation }) => {
                   )}
                 </TouchableOpacity>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.uploadBox, cnicBack && styles.uploadBoxCompleted]}
                   onPress={() => !cnicBack && handleUpload('cnicBack')}
                   activeOpacity={0.7}
@@ -521,7 +523,7 @@ const SignUpScreen = ({ navigation }) => {
                     </View>
                   ))}
                   {workshopPics.length < 5 && (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.workshopPicSlotAdd, uploadingField === 'workshop' && styles.workshopPicSlotLoading]}
                       onPress={() => uploadingField !== 'workshop' && handleUpload('workshop')}
                       activeOpacity={0.7}
@@ -542,7 +544,7 @@ const SignUpScreen = ({ navigation }) => {
 
               {/* Character Certificate Section */}
               <Text style={styles.uploadLabel}>Police Verified Character Certificate</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.certificateUploadBox, policeCert && styles.certificateUploadBoxCompleted]}
                 onPress={() => !policeCert && handleUpload('policeCert')}
                 activeOpacity={0.7}
@@ -572,55 +574,52 @@ const SignUpScreen = ({ navigation }) => {
               </TouchableOpacity>
 
               {/* Submit for Verification Button */}
-              <TouchableOpacity 
+              <Button
+                title="Submit for Verification"
+                onPress={handleStep3Submit}
+                disabled={loading || !cnicFront || !cnicBack || workshopPics.length < 5 || !policeCert}
+                isLoading={loading}
                 style={[
                   styles.submitDocsBtn,
                   ((!cnicFront || !cnicBack || workshopPics.length < 5 || !policeCert) || loading) && styles.submitDocsBtnDisabled
                 ]}
-                onPress={handleStep3Submit}
-                disabled={loading || !cnicFront || !cnicBack || workshopPics.length < 5 || !policeCert}
-                activeOpacity={0.8}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Text style={styles.submitDocsBtnText}>Submit for Verification</Text>
-                )}
-              </TouchableOpacity>
+                textStyle={styles.submitDocsBtnText}
+              />
             </View>
           ) : (
             <View style={styles.statusContainer}>
               <View style={styles.statusIconWrapper}>
                 <Ionicons name="shield-checkmark" size={50} color="#10B981" />
               </View>
-              
+
               <Text style={styles.statusTitle}>Submission Received!</Text>
               <Text style={styles.statusDescription}>
                 Thank you! Your documents are submitted for review.
               </Text>
-              
-              <View style={styles.statusInfoCard}>
+
+              <Card padded={false} style={styles.statusInfoCard}>
                 <Ionicons name="time" size={22} color="#FF7A00" style={{ marginRight: 10, marginTop: 2 }} />
                 <Text style={styles.statusInfoText}>
                   Your account is currently <Text style={{ fontWeight: 'bold', color: '#FF7A00' }}>Under Review</Text>. We will verify your profile and activate your workshop services within <Text style={{ fontWeight: 'bold', color: '#FFF' }}>24 Hours</Text>.
                 </Text>
-              </View>
+              </Card>
 
-              <TouchableOpacity 
-                style={styles.doneBtn}
+              <Button
+                title="Back to Login"
                 onPress={() => {
                   setStep(1);
                   setRole('');
                   navigation.navigate('Login');
                 }}
-              >
-                <Text style={styles.doneBtnText}>Back to Login</Text>
-              </TouchableOpacity>
+                style={styles.doneBtn}
+                textStyle={styles.doneBtnText}
+              />
             </View>
           )}
-        </BlurView>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </BlurView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ScreenWrapper>
   );
 };
 
@@ -630,12 +629,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingVertical: 40,
+    paddingVertical: spacing.xl,
     justifyContent: 'center',
   },
   glassCard: {
-    marginHorizontal: 20,
-    marginVertical: 10,
+    marginHorizontal: spacing.md,
+    marginVertical: spacing.sm,
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
@@ -648,9 +647,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', 
-    paddingVertical: 18,
-    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderBottomWidth: 1,
@@ -668,37 +667,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   roleSelectionContainer: {
-    padding: 10,
+    padding: spacing.md,
   },
   sectionTitle: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 6,
-    marginTop: 5,
+    marginBottom: spacing.xs,
+    marginTop: spacing.xs,
   },
   sectionSubtitle: {
     color: '#94A3B8',
-    fontSize: 12,
+    fontSize: 13,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.lg,
     lineHeight: 16,
   },
   cardsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    gap: 8,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
   cardContainer: {
     flex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderRadius: 14,
-    padding: 10,
+    padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(148, 163, 184, 0.2)',
     justifyContent: 'space-between',
+    shadowOpacity: 0.12,
+    elevation: 2,
+  },
+  cardContainerSmall: {
+    flex: undefined,
+    width: '100%',
+    padding: 14,
   },
   cardHeaderRow: {
     alignItems: 'center',
@@ -725,10 +731,10 @@ const styles = StyleSheet.create({
   },
   cardRoleSubtitle: {
     color: '#94A3B8',
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 17,
     textAlign: 'center',
-    height: 30, // Keeps height matching between both cards
+    minHeight: 30,
   },
   featuresList: {
     marginBottom: 12,
@@ -744,26 +750,16 @@ const styles = StyleSheet.create({
   },
   featureText: {
     color: '#E2E8F0',
-    fontSize: 9.5,
+    fontSize: 12,
     flex: 1,
-    lineHeight: 12,
+    lineHeight: 17,
   },
   roleContinueBtn: {
-    backgroundColor: '#FF7A00',
-    borderRadius: 10,
-    paddingVertical: 8,
-    alignItems: 'center',
-    shadowColor: '#FF7A00',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
     marginTop: 10,
+    width: '100%',
   },
   roleContinueBtnText: {
-    color: '#FFF',
-    fontSize: 11.5,
-    fontWeight: 'bold',
+    fontSize: 14,
   },
   backToLoginBtn: {
     alignItems: 'center',
@@ -776,7 +772,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   formContainer: {
-    padding: 25,
+    padding: spacing.lg,
+  },
+  formContainerSmall: {
+    padding: spacing.md,
   },
   selectedRoleBadge: {
     flexDirection: 'row',
@@ -794,13 +793,6 @@ const styles = StyleSheet.create({
     color: '#FF7A00',
     fontSize: 12,
     fontWeight: 'bold',
-  },
-  label: {
-    color: '#E2E8F0',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    marginLeft: 5,
   },
   rolesRow: {
     flexDirection: 'row',
@@ -852,56 +844,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
-  inputWrapper: {
+  signupInput: {
+    marginBottom: spacing.md,
+  },
+  signupInputContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 25,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    height: 45,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    borderRadius: 12,
+    minHeight: 52,
   },
-  inputWrapperFocused: {
-    borderColor: '#FF7A00',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    shadowColor: '#FF7A00',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  input: {
-    flex: 1,
-    color: '#FFF',
-    fontStyle: 'italic',
+  signupInputText: {
+    color: colors.text,
     fontSize: 15,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    ...Platform.select({
-      web: {
-        outlineStyle: 'none',
-        borderStyle: 'none',
-      },
-    }),
+    paddingHorizontal: spacing.sm,
   },
-  icon: {
-    marginRight: 10,
-  },
-  iconRight: {
-    marginLeft: 10,
-  },
-  iconRightInteractive: {
-    marginLeft: 10,
-    padding: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 15,
-    overflow: 'hidden',
+  passwordToggle: {
+    minWidth: 40,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loginLink: {
     marginBottom: 10,
@@ -912,8 +873,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginTop: 5,
   },
+  bottomSectionSmall: {
+    flexDirection: 'column-reverse',
+    alignItems: 'stretch',
+    gap: spacing.md,
+  },
   linksContainer: {
-    alignItems:'flex-start',
+    alignItems: 'flex-start',
   },
   loginLinkText: {
     color: '#FF7A00',
@@ -940,21 +906,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginTop: 10,
   },
+  buttonContainerSmall: {
+    width: '100%',
+    alignItems: 'stretch',
+  },
   submitBtn: {
-    backgroundColor: '#FF7A00',
-    paddingVertical: 10,
-    paddingHorizontal: 25,
-    borderRadius: 25,
-    shadowColor: '#FF7A00',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    minWidth: 132,
   },
   submitBtnText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
   },
   // Verification Styles (Step 3)
   verificationContainer: {
@@ -1114,27 +1074,13 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   submitDocsBtn: {
-    backgroundColor: '#FF7A00',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    shadowColor: '#FF7A00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
     marginTop: 15,
   },
   submitDocsBtnDisabled: {
-    backgroundColor: '#475569',
-    shadowOpacity: 0,
-    elevation: 0,
-    opacity: 0.6,
+    opacity: 0.75,
   },
   submitDocsBtnText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
   },
 
   // Status Styles (Step 4)
@@ -1167,7 +1113,7 @@ const styles = StyleSheet.create({
   statusInfoCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
     borderRadius: 14,
-    padding: 16,
+    padding: spacing.md,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
     flexDirection: 'row',
@@ -1181,22 +1127,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   doneBtn: {
-    backgroundColor: '#FF7A00',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    alignItems: 'center',
     width: '100%',
-    shadowColor: '#FF7A00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   doneBtnText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
   },
 });
 

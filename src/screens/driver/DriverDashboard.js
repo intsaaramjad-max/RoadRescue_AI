@@ -24,7 +24,7 @@ export default function DriverDashboard({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
+
         {/* Active Rescue Tracking Panel */}
         <Card style={styles.activeRequestCard}>
           <View style={styles.activeCardHeader}>
@@ -34,7 +34,7 @@ export default function DriverDashboard({ navigation }) {
             </View>
             <Text style={styles.activeCardTitle}>Active Rescue Request</Text>
           </View>
-          
+
           <View style={styles.trackerDetails}>
             <View style={styles.trackerRow}>
               <Ionicons name="construct-outline" size={18} color={colors.primary} />
@@ -51,7 +51,7 @@ export default function DriverDashboard({ navigation }) {
           </View>
 
           <View style={styles.activeActionsRow}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionBtnSecondary, { marginRight: 10 }]}
               onPress={() => navigation.navigate('Chat')}
               activeOpacity={0.8}
@@ -60,7 +60,7 @@ export default function DriverDashboard({ navigation }) {
               <Text style={styles.actionBtnSecondaryText}>Chat</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionBtnPrimary}
               onPress={() => navigation.navigate('LiveTracking')}
               activeOpacity={0.8}
@@ -76,14 +76,14 @@ export default function DriverDashboard({ navigation }) {
         <View style={styles.servicesGrid}>
           {[
             { id: 1, title: 'Tow Truck', icon: 'car-sport', color: '#3B82F6', desc: 'Flatbed towing' },
-            { id: 2, title: 'Flat Tire', icon: 'disc', color: '#10B981', desc: 'Tire replacement' },
+            { id: 2, title: 'Flat Tire', icon: 'home', color: '#10B981', desc: 'Tire replacement' },
             { id: 3, title: 'Battery', icon: 'battery-charging', color: '#F59E0B', desc: 'Jumpstart & swap' },
             { id: 4, title: 'Lockout', icon: 'key', color: '#EF4444', desc: 'Key retrieval' },
             { id: 5, title: 'Fuel Delivery', icon: 'water', color: '#8B5CF6', desc: 'Gas top-up' },
             { id: 6, title: 'AI Diagnosis', icon: 'hardware-chip', color: colors.primary, desc: 'Smart scan' },
           ].map(service => (
-            <TouchableOpacity 
-              key={service.id} 
+            <TouchableOpacity
+              key={service.id}
               style={styles.serviceItem}
               onPress={() => {
                 if (service.title === 'AI Diagnosis') {
@@ -107,44 +107,44 @@ export default function DriverDashboard({ navigation }) {
         <Text style={styles.sectionTitle}>Control Hub & Utilities</Text>
         <View style={styles.modulesGrid}>
           {[
-            { 
-              title: 'Live Map & Tracking', 
-              desc: 'View active directions, route maps & live mechanic location tracker', 
-              icon: 'map-outline', 
-              color: '#3B82F6', 
-              target: 'LiveTracking' 
+            {
+              title: 'Live Map & Tracking',
+              desc: 'View active directions, route maps & live mechanic location tracker',
+              icon: 'map-outline',
+              color: '#3B82F6',
+              target: 'LiveTracking'
             },
-            { 
-              title: 'Chat Messenger', 
-              desc: 'Instant chats, image sharing & status logs with support and mechanics', 
-              icon: 'chatbubbles-outline', 
-              color: '#10B981', 
-              target: 'Chat' 
+            {
+              title: 'Chat Messenger',
+              desc: 'Instant chats, image sharing & status logs with support and mechanics',
+              icon: 'chatbubbles-outline',
+              color: '#10B981',
+              target: 'Chat'
             },
-            { 
-              title: 'Payment & Wallet', 
-              desc: 'Configure cards, view pricing plans & transaction receipt logs', 
-              icon: 'wallet-outline', 
-              color: '#F59E0B', 
-              target: 'Payment' 
+            {
+              title: 'Payment & Wallet',
+              desc: 'Configure cards, view pricing plans & transaction receipt logs',
+              icon: 'wallet-outline',
+              color: '#F59E0B',
+              target: 'Payment'
             },
-            { 
-              title: 'Feedback & Reviews', 
-              desc: 'Rate completed services, leave reviews & recommend improvements', 
-              icon: 'star-outline', 
-              color: '#EF4444', 
-              target: 'Feedback' 
+            {
+              title: 'Feedback & Reviews',
+              desc: 'Rate completed services, leave reviews & recommend improvements',
+              icon: 'star-outline',
+              color: '#EF4444',
+              target: 'Feedback'
             },
-            { 
-              title: 'Service History Logs', 
-              desc: 'Track and review past invoices, request lists & breakdown types', 
-              icon: 'time-outline', 
-              color: '#8B5CF6', 
-              target: 'History' 
+            {
+              title: 'Service History Logs',
+              desc: 'Track and review past invoices, request lists & breakdown types',
+              icon: 'time-outline',
+              color: '#8B5CF6',
+              target: 'History'
             },
           ].map((mod, idx) => (
-            <TouchableOpacity 
-              key={idx} 
+            <TouchableOpacity
+              key={idx}
               style={styles.moduleCard}
               onPress={() => navigation.navigate(mod.target)}
               activeOpacity={0.7}

@@ -11,6 +11,10 @@ import MechanicTrackingScreen from '../screens/mechanic/MechanicTrackingScreen';
 import MechanicVerificationScreen from '../screens/mechanic/MechanicVerificationScreen';
 import EarningsScreen from '../screens/mechanic/EarningsScreen';
 import MechanicProfileScreen from '../screens/mechanic/MechanicProfileScreen';
+import ChatScreen from '../screens/driver/ChatScreen';
+import ServicesOfferedScreen from '../screens/mechanic/ServicesOfferedScreen';
+import ReviewsScreen from '../screens/mechanic/ReviewsScreen';
+import MechanicSettingsScreen from '../screens/mechanic/MechanicSettingsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -22,7 +26,11 @@ function MechanicHomeStack() {
       <Stack.Screen name="IncomingRequests" component={IncomingRequestsScreen} />
       <Stack.Screen name="RequestDetails" component={RequestDetailsScreen} />
       <Stack.Screen name="Tracking" component={MechanicTrackingScreen} />
+      <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="Verification" component={MechanicVerificationScreen} />
+      <Stack.Screen name="ServicesOffered" component={ServicesOfferedScreen} />
+      <Stack.Screen name="Reviews" component={ReviewsScreen} />
+      <Stack.Screen name="MechanicSettings" component={MechanicSettingsScreen} />
     </Stack.Navigator>
   );
 }
