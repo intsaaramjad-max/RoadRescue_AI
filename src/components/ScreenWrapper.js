@@ -2,13 +2,19 @@ import React from 'react';
 import { View, StyleSheet, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { colors } from '../theme/theme';
 
-export const ScreenWrapper = ({ children, style, useSafeArea = true }) => {
+export const ScreenWrapper = ({
+  children,
+  style,
+  useSafeArea = true,
+  statusBarStyle = 'light-content',
+  statusBarColor = colors.background,
+}) => {
   const Container = useSafeArea ? SafeAreaView : View;
   
   return (
     <View style={styles.outerContainer}>
       <Container style={[styles.container, style]}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+        <StatusBar barStyle={statusBarStyle} backgroundColor={statusBarColor} />
         {children}
       </Container>
     </View>
@@ -35,6 +41,6 @@ const styles = StyleSheet.create({
     borderRightWidth: Platform.OS === 'web' ? 1 : 0,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     // Add extra padding for Android if SafeAreaView is not sufficient
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
   },
 });

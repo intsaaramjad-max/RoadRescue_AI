@@ -12,7 +12,7 @@ const initialServices = [
   { id: 'fuel', icon: 'water-outline', title: 'Fuel Delivery', detail: 'Emergency fuel delivery', rate: 'From PKR 1,000', enabled: false },
 ];
 
-export default function ServicesOfferedScreen() {
+export default function ServicesOfferedScreen({ route }) {
   const [services, setServices] = useState(initialServices);
 
   const toggleService = (id) => {
@@ -23,7 +23,7 @@ export default function ServicesOfferedScreen() {
 
   return (
     <ScreenWrapper>
-      <Header title="Services Offered" showBack />
+      <Header title="Services Offered" showBack fallbackRoute="Dashboard" backTab={route?.params?.backTab} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.heading}>Your service skills</Text>
         <Text style={styles.subheading}>Turn services on or off based on the work you can accept.</Text>

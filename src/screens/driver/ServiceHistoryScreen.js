@@ -18,6 +18,7 @@ import { Header } from '../../components/Header';
 const { width } = Dimensions.get('window');
 
 const ServiceHistoryScreen = ({ navigation }) => {
+  const showBack = navigation.getState()?.type === 'stack';
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -287,7 +288,10 @@ const ServiceHistoryScreen = ({ navigation }) => {
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() =>
-                navigation.navigate('ServiceRequestDetails', { id: item.id })
+                navigation.navigate('HomeStack', {
+                  screen: 'RequestDetails',
+                  params: { requestId: item.id },
+                })
               }
             >
               <Ionicons name="eye-outline" size={18} color="#0F4C81" />
@@ -296,7 +300,10 @@ const ServiceHistoryScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[styles.actionButton, styles.rebookButton]}
               onPress={() =>
-                navigation.navigate('CreateRequest', { serviceType: item.issueType })
+                navigation.navigate('HomeStack', {
+                  screen: 'CreateRequest',
+                  params: { serviceType: item.issueType },
+                })
               }
             >
               <Ionicons name="refresh-outline" size={18} color="#FF7A00" />
@@ -336,7 +343,7 @@ const ServiceHistoryScreen = ({ navigation }) => {
   return (
     <ScreenWrapper>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <Header title="Service History" showBack />
+      <Header title="Service History" showBack={showBack} />
 
       {/* Header Section */}
       <View style={styles.headerContent}>

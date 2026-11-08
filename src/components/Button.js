@@ -46,10 +46,10 @@ export const Button = ({
 
   const getPadding = () => {
     switch (size) {
-      case 'sm': return { paddingVertical: spacing.sm, paddingHorizontal: spacing.md };
-      case 'md': return { paddingVertical: spacing.md, paddingHorizontal: spacing.lg };
-      case 'lg': return { paddingVertical: spacing.lg, paddingHorizontal: spacing.xl };
-      default: return { paddingVertical: spacing.md, paddingHorizontal: spacing.lg };
+      case 'sm': return { minHeight: 44, paddingVertical: spacing.xs, paddingHorizontal: spacing.md };
+      case 'md': return { minHeight: 48, paddingVertical: spacing.sm + spacing.xs, paddingHorizontal: spacing.lg };
+      case 'lg': return { minHeight: 56, paddingVertical: spacing.md, paddingHorizontal: spacing.xl };
+      default: return { minHeight: 48, paddingVertical: spacing.sm + spacing.xs, paddingHorizontal: spacing.lg };
     }
   };
 
@@ -63,6 +63,10 @@ export const Button = ({
       onPress={onPress}
       disabled={disabled || isLoading}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={typeof title === 'string' ? title : undefined}
+      accessibilityState={{ disabled: disabled || isLoading, busy: isLoading }}
+      hitSlop={4}
     >
       {isLoading ? (
         <ActivityIndicator color={getTextColor()} />

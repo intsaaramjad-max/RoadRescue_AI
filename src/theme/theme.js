@@ -5,6 +5,10 @@ export const colors = {
   primary: '#F97316', // Orange Accent
   primaryLight: '#FFEDD5',
   primaryDark: '#C2410C',
+  secondary: '#3B82F6', // Blue Accent
+  secondaryLight: '#DBEAFE',
+  secondaryDark: '#1D4ED8',
+  cardBorder: 'rgba(148, 163, 184, 0.12)',
   text: '#F8FAFC',
   textMuted: '#94A3B8',
   success: '#10B981',
@@ -55,9 +59,9 @@ export const shadows = {
   sm: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.18,
-    shadowRadius: 1.0,
-    elevation: 1,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
   },
   md: {
     shadowColor: '#000',

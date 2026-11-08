@@ -18,8 +18,10 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.cardBorder,
     ...shadows.sm,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   padded: {
     padding: spacing.md,

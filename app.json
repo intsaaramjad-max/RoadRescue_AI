@@ -19,6 +19,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow RoadRescue AI to record engine sounds for diagnosis."
+        }
+      ],
+      "expo-asset"
+    ]
   }
 }

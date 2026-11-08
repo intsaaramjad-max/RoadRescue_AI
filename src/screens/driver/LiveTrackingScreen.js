@@ -5,7 +5,18 @@ import { Header } from '../../components/Header';
 import { colors, typography, spacing, borderRadius, shadows } from '../../theme/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-export default function LiveTrackingScreen({ navigation }) {
+export default function LiveTrackingScreen({ route, navigation }) {
+  const request = route?.params?.request || {};
+  const mechanicName = route?.params?.mechanicName
+    || route?.params?.recipientName
+    || request.mechanic?.fullName
+    || request.mechanicFullName
+    || 'Assigned service provider';
+  const mechanicImage = route?.params?.mechanicImage
+    || route?.params?.recipientImage
+    || request.mechanic?.profileImage
+    || request.mechanic?.avatarUrl;
+
   return (
     <ScreenWrapper useSafeArea={false}>
       <View style={styles.mapContainer}>
@@ -34,10 +45,10 @@ export default function LiveTrackingScreen({ navigation }) {
 
         <View style={styles.mechanicInfo}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>M</Text>
+            <Text style={styles.avatarText}>{mechanicName.charAt(0).toUpperCase()}</Text>
           </View>
           <View style={styles.mechanicDetails}>
-            <Text style={styles.mechanicName}>Mike's Auto Repair</Text>
+            <Text style={styles.mechanicName}>{mechanicName}</Text>
             <View style={styles.ratingRow}>
               <Ionicons name="star" size={16} color="#F59E0B" />
               <Text style={styles.ratingText}>4.9 (120 reviews)</Text>
@@ -47,7 +58,12 @@ export default function LiveTrackingScreen({ navigation }) {
           <View style={styles.actionButtons}>
             <TouchableOpacity 
               style={[styles.circleBtn, { backgroundColor: colors.primary }]}
-              onPress={() => navigation.navigate('Chat')}
+              onPress={() => navigation.navigate('Chat', {
+                requestId: route?.params?.requestId || request.id,
+                recipientName: mechanicName,
+                recipientImage: mechanicImage,
+                request,
+              })}
             >
               <Ionicons name="chatbubble" size={20} color={colors.white} />
             </TouchableOpacity>
