@@ -170,7 +170,7 @@ Before running the project, make sure you have:
 
 ## 👩‍💻 Developed By
 
-Intsaar Amjad**
+Intsaar Amjad
 
 Software Engineering Final Year Project
 
