@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = 'super_secret_jwt_key_roadrescue_ai';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET must be configured before starting the backend.');
+}
 
 const protect = (req, res, next) => {
   let token;
@@ -19,7 +23,7 @@ const protect = (req, res, next) => {
       req.user = decoded;
       next();
     } catch (error) {
-      console.error(error);
+      console.error('JWT verification failed:', error.name || 'UnknownError');
       res.status(401).json({ message: 'Not authorized, token failed' });
     }
   }

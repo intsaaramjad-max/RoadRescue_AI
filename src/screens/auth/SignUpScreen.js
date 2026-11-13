@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Card } from '../../components/Card';
 import { colors, spacing } from '../../theme/theme';
+import { normalizePhoneNumber } from '../../utils/phoneNumber';
 const showAlert = (title, message) => {
   if (Platform.OS === 'web') {
     alert(`${title}\n\n${message}`);
@@ -29,16 +30,16 @@ const showAlert = (title, message) => {
   }
 };
 
-const SignUpScreen = ({ navigation }) => {
+const SignUpScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
   const isSmallDevice = width < 375;
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(route?.params?.step || 1);
   const [role, setRole] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Auth context & API states
-  const { register, uploadDocs } = useAuth();
+  const { beginSignup, uploadDocs } = useAuth();
   const [loading, setLoading] = useState(false);
 
   // Local Form Inputs state bindings
@@ -55,6 +56,10 @@ const SignUpScreen = ({ navigation }) => {
   const [policeCert, setPoliceCert] = useState(null);
   const [uploadingField, setUploadingField] = useState(null);
 
+  useEffect(() => {
+    if (route?.params?.step === 3) setStep(3);
+  }, [route?.params?.step]);
+
   const validateStep2 = () => {
     if (!fullName.trim()) {
       showAlert('Validation Error', 'Full Name is required');
@@ -69,8 +74,8 @@ const SignUpScreen = ({ navigation }) => {
       showAlert('Validation Error', 'Please enter a valid email address');
       return false;
     }
-    if (!phone.trim()) {
-      showAlert('Validation Error', 'Phone Number is required');
+    if (!normalizePhoneNumber(phone)) {
+      showAlert('Validation Error', 'Enter a valid phone number. Pakistani mobile numbers can use +92 or start with 03.');
       return false;
     }
     if (!password.trim()) {
@@ -91,26 +96,26 @@ const SignUpScreen = ({ navigation }) => {
   const handleStep2Submit = async () => {
     if (!validateStep2()) return;
 
-    setLoading(true);
-    try {
-      await register(
-        fullName.trim(),
-        emailVal.trim(),
-        phone.trim(),
-        password,
-        role
+    // Set to true to allow demo on all platforms (Web and mobile). Original code preserved.
+    const DEMO_MODE = true;
+    if (!DEMO_MODE && Platform.OS !== 'web') {
+      showAlert(
+        'Web phone signup only',
+        'Firebase phone signup is currently enabled for Web. Native Android and iOS signup will be added in a later phase.',
       );
-
-      if (role === 'DRIVER') {
-        navigation.navigate('OtpVerification');
-      } else {
-        setStep(3);
-      }
-    } catch (error) {
-      showAlert('Registration Failed', error.message || 'An error occurred during registration.');
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    const normalizedPhone = normalizePhoneNumber(phone);
+    if (!normalizedPhone) return;
+    beginSignup({
+      fullName: fullName.trim(),
+      email: emailVal.trim().toLowerCase(),
+      phone: normalizedPhone,
+      password,
+      role,
+    });
+    navigation.navigate('OtpVerification', { mode: 'signup' });
   };
 
   const handleStep3Submit = async () => {
@@ -122,7 +127,7 @@ const SignUpScreen = ({ navigation }) => {
     setLoading(true);
     try {
       await uploadDocs(cnicFront, cnicBack, workshopPics, policeCert);
-      navigation.navigate('FaceVerification'); // open face scan after docs
+      showAlert('Documents received', 'Your mechanic account remains locked until an Administrator reviews the submission.');
     } catch (error) {
       showAlert('Upload Failed', error.message || 'An error occurred during document upload.');
     } finally {

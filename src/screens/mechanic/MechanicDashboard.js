@@ -34,16 +34,28 @@ export default function MechanicDashboard({ navigation }) {
     );
   }
 
-  if (user && user.verificationStatus === 'PENDING') {
+  if (user?.role === 'MECHANIC' && user.verificationStatus !== 'APPROVED') {
+    const rejected = user.verificationStatus === 'REJECTED';
+    const documentsSubmitted = Boolean(user.documents?.uploadedAt);
     return (
       <ScreenWrapper useSafeArea={true}>
         <View style={styles.pendingContainer}>
           <View style={styles.statusIconWrapper}>
-            <Ionicons name="shield-checkmark" size={60} color={colors.success} />
+            <Ionicons
+              name={rejected ? 'close-circle' : 'shield-checkmark'}
+              size={60}
+              color={rejected ? colors.error : colors.success}
+            />
           </View>
-          <Text style={styles.statusTitle}>Verification Pending</Text>
+          <Text style={styles.statusTitle}>
+            {rejected ? 'Verification Rejected' : documentsSubmitted ? 'Verification Pending' : 'Documents Required'}
+          </Text>
           <Text style={styles.statusDescription}>
-            Thank you! Your documents have been submitted and are under review.
+            {rejected
+              ? 'Your account is not approved. Contact an Administrator for next steps.'
+              : documentsSubmitted
+                ? 'Your account is restricted while an Administrator reviews the submitted documents.'
+                : 'Your account is restricted until the required mechanic documents are submitted.'}
           </Text>
           <View style={styles.statusInfoCard}>
             <Ionicons name="time" size={24} color={colors.primary} style={styles.infoIcon} />

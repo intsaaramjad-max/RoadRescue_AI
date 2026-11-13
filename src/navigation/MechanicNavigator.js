@@ -15,6 +15,7 @@ import ChatScreen from '../screens/driver/ChatScreen';
 import ServicesOfferedScreen from '../screens/mechanic/ServicesOfferedScreen';
 import ReviewsScreen from '../screens/mechanic/ReviewsScreen';
 import MechanicSettingsScreen from '../screens/mechanic/MechanicSettingsScreen';
+import { useAuth } from '../context/AuthContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -36,6 +37,16 @@ function MechanicHomeStack() {
 }
 
 export default function MechanicNavigator() {
+  const { user } = useAuth();
+
+  if (user?.role === 'MECHANIC' && user.verificationStatus !== 'APPROVED') {
+    return (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="MechanicAccess" component={MechanicDashboard} />
+      </Stack.Navigator>
+    );
+  }
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

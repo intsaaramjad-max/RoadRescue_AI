@@ -34,6 +34,11 @@ yarn-error.*
 .env*.local
 .env
 
+# Firebase Admin credentials
+firebase-service-account*.json
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
+
 # typescript
 *.tsbuildinfo
 

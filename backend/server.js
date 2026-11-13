@@ -29,6 +29,7 @@ const {
   supportRouter,
   paymentRouter,
 } = require('./routes/api');
+const { initFirebaseAdmin } = require('./services/firebaseAdmin');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -81,7 +82,13 @@ app.use((err, _req, res, _next) => {
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`\n🚗 RoadRescue AI Backend  →  http://localhost:${PORT}`);
-    console.log('📁 Structure: backend/server.js → routes/api.js → data/*.json\n');
+    const fbStatus = initFirebaseAdmin();
+    if (fbStatus.success) {
+      console.log(`🔥 Firebase Admin  →  Initialized for project [${fbStatus.projectId}]`);
+    } else {
+      console.warn(`⚠️ Firebase Admin  →  Failed to initialize: ${fbStatus.error}`);
+    }
+    console.log('📁 Structure: backend/server.js → routes/api.js\n');
   });
 }
 

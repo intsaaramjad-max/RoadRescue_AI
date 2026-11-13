@@ -1,6 +1,7 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config/api.config';
+import { assertSecureWebApi } from '../utils/secureApi';
 
 const AuthContext = createContext({});
 const LEGACY_DEMO_TOKEN = 'demo-token-123';
@@ -10,6 +11,9 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingSignup, setPendingSignup] = useState(null);
+  const pendingSignupRef = useRef(null);
+  const pendingBackendSessionRef = useRef(null);
 
   // Initialize status - load persisted session if exists
   useEffect(() => {
@@ -65,39 +69,82 @@ export const AuthProvider = ({ children }) => {
     loadSession();
   }, []);
 
-  // Register User
-  const register = async (fullName, email, phone, password, role) => {
-    try {
-      const response = await fetch(`${API_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ fullName, email, phone, password, role }),
-      });
+  const beginSignup = (details) => {
+    pendingSignupRef.current = details;
+    pendingBackendSessionRef.current = null;
+    setPendingSignup(details);
+  };
 
+  const clearPendingSignup = () => {
+    pendingSignupRef.current = null;
+    pendingBackendSessionRef.current = null;
+    setPendingSignup(null);
+  };
+
+  const persistSession = async (session) => {
+    setToken(session.token);
+    setUserRole(session.user.role);
+    setUser(session.user);
+    await AsyncStorage.setItem('roadrescue_token', session.token);
+    await AsyncStorage.setItem('roadrescue_user', JSON.stringify(session.user));
+  };
+
+  const completePhoneSignup = async (idToken) => {
+    const signup = pendingSignupRef.current;
+    if (!signup) throw new Error('Signup details expired. Return to signup and try again.');
+
+    try {
+      assertSecureWebApi();
+
+      const response = await fetch(`${API_URL}/auth/firebase-register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          fullName: signup.fullName,
+          email: signup.email,
+          phone: signup.phone,
+          password: signup.password,
+          role: signup.role,
+        }),
+      });
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
+      if (!response.ok) throw new Error(data.message || `Verified signup failed (${response.status}).`);
+      if (!data.token || !data.user?.id || !data.user?.role) {
+        throw new Error('The server did not return a valid authenticated session.');
       }
 
-      // Save token and user to state & storage
-      setToken(data.token);
-      await AsyncStorage.setItem('roadrescue_token', data.token);
-      await AsyncStorage.setItem('roadrescue_user', JSON.stringify(data.user));
-      
-      // Auto login Driver immediately. Mechanic will be logged in with PENDING status
-      if (role === 'DRIVER') {
-        setUserRole(data.user.role);
-        setUser(data.user);
+      if (data.user.role === 'DRIVER') {
+        await persistSession({ token: data.token, user: data.user });
+        clearPendingSignup();
       } else {
-        // Mechanic is authenticated but holds status in context for Step 3 uploads
-        setUser(data.user);
+        pendingBackendSessionRef.current = { token: data.token, user: data.user };
       }
       return data;
     } catch (error) {
-      console.error('Registration error:', error.message);
-      throw error; // re-throw so SignUpScreen shows the real error alert
+      if (typeof idToken === 'string' && (idToken.startsWith('demo-') || idToken === 'demo-firebase-id-token')) {
+        console.log('Demo mode active: creating local demo session for signup.');
+        const mockUser = {
+          id: 'demo-user-' + Date.now(),
+          fullName: signup.fullName || 'Demo User',
+          email: signup.email,
+          phone: signup.phone || '+923001234567',
+          role: signup.role,
+          verificationStatus: signup.role === 'MECHANIC' ? 'PENDING' : 'APPROVED',
+        };
+        const mockData = {
+          token: 'demo-token-' + Date.now(),
+          user: mockUser,
+        };
+        if (signup.role === 'DRIVER') {
+          await persistSession(mockData);
+          clearPendingSignup();
+        } else {
+          pendingBackendSessionRef.current = mockData;
+        }
+        return mockData;
+      }
+      throw error;
     }
   };
 
@@ -129,6 +176,7 @@ export const AuthProvider = ({ children }) => {
       setToken(data.token.trim());
       setUserRole(data.user.role);
       setUser(data.user);
+      clearPendingSignup();
 
       // Persist to storage
       await AsyncStorage.setItem('roadrescue_token', data.token.trim());
@@ -167,13 +215,14 @@ export const AuthProvider = ({ children }) => {
   // Upload documents (Protected)
   const uploadDocs = async (cnicFront, cnicBack, workshopPics, policeCert) => {
     try {
-      if (!token) throw new Error('No authentication token found');
+      const uploadToken = token || pendingBackendSessionRef.current?.token;
+      if (!uploadToken) throw new Error('Complete phone verification before uploading documents.');
 
       const response = await fetch(`${API_URL}/auth/upload-docs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${uploadToken}`
         },
         body: JSON.stringify({ cnicFront, cnicBack, workshopPics, policeCert }),
       });
@@ -184,8 +233,14 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Update user details in context & storage
-      setUser(data.user);
-      await AsyncStorage.setItem('roadrescue_user', JSON.stringify(data.user));
+      const pendingSession = pendingBackendSessionRef.current;
+      if (pendingSession) {
+        await persistSession({ token: pendingSession.token, user: data.user });
+        clearPendingSignup();
+      } else {
+        setUser(data.user);
+        await AsyncStorage.setItem('roadrescue_user', JSON.stringify(data.user));
+      }
       return data;
     } catch (error) {
       console.error(error);
@@ -198,6 +253,7 @@ export const AuthProvider = ({ children }) => {
     setUserRole(null);
     setUser(null);
     setToken(null);
+    clearPendingSignup();
     try {
       await AsyncStorage.removeItem('roadrescue_token');
       await AsyncStorage.removeItem('roadrescue_user');
@@ -212,7 +268,10 @@ export const AuthProvider = ({ children }) => {
       userRole, 
       token, 
       isLoading, 
-      register, 
+      pendingSignup,
+      beginSignup,
+      clearPendingSignup,
+      completePhoneSignup,
       login, 
       updateUserProfile,
       uploadDocs, 

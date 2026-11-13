@@ -10,7 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config/api.config';
 
 export default function PrivacySecurityScreen({ navigation }) {
-  const { user, userToken, logout } = useAuth();
+  const { token, logout } = useAuth();
   const [locationSharing, setLocationSharing] = useState(true);
   const [twoFactor, setTwoFactor]             = useState(false);
   const [dataSharing, setDataSharing]         = useState(true);
@@ -39,10 +39,10 @@ export default function PrivacySecurityScreen({ navigation }) {
     setPwLoading(true);
     try {
       const response = await fetch(`${API_URL}/auth/change-password`, {
-        method: 'POST',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${userToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           currentPassword: currentPw,

@@ -84,11 +84,7 @@ const LoginScreen = ({ navigation }) => {
 
   // Handle Forgot Password
   const handleForgotPassword = () => {
-    if (!email.trim()) {
-      showAlert('Error', 'Please enter your email or phone number');
-      return;
-    }
-    navigation.navigate('ForgotPassword', { email });
+    navigation.navigate('ForgotPassword');
   };
 
   // Handle field focus animation

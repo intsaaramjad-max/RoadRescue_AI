@@ -26,6 +26,8 @@ const userSchema = new mongoose.Schema({
   fullName: { type: String, required: true },
   email: { type: String, required: true, unique: true, lowercase: true },
   phone: { type: String, required: true },
+  firebaseUid: { type: String, unique: true, sparse: true, default: undefined },
+  firebasePhone: { type: String, unique: true, sparse: true, default: undefined },
   password: { type: String, required: true },
   role: { type: String, required: true, enum: ['DRIVER', 'MECHANIC', 'ADMIN'] },
   createdAt: { type: String, default: () => new Date().toISOString() },
@@ -44,8 +46,6 @@ const userSchema = new mongoose.Schema({
   verifiedAt: { type: String, default: null },
   updatedAt: { type: String, default: null },
   deletedAt: { type: String, default: null },
-  otpCode: { type: String, default: null },
-  otpExpiry: { type: String, default: null },
 }, {
   timestamps: true
 });
@@ -55,6 +55,8 @@ userSchema.set('toJSON', {
   transform: (doc, ret) => {
     delete ret._id;
     delete ret.__v;
+    delete ret.firebaseUid;
+    delete ret.firebasePhone;
     return ret;
   }
 });

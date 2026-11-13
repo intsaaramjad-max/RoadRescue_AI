@@ -2,7 +2,7 @@
 
 ### Smart AI-Powered Roadside Assistance Application
 
-RoadRescue AI is a roadside-assistance application designed to connect drivers with nearby mechanics whenever they experience vehicle problems or emergencies. It provides separate experiences for Drivers, Mechanics, and Admins through a mobile application and a Node.js backend.The platform combines location-based services, AI-assisted vehicle diagnosis, service request management, and real-time communication to make roadside assistance easier and more accessible.
+RoadRescue AI is a roadside-assistance application designed to connect drivers with nearby mechanics whenever they experience vehicle problems or emergencies. It provides separate experiences for Drivers, Mechanics, and Admins through a mobile application and a Node.js backend. The platform combines location-based services, AI-assisted vehicle diagnosis, service request management, and real-time communication to make roadside assistance easier and more accessible.
 
 ---
 
@@ -75,7 +75,7 @@ RoadRescue AI supports three main user roles.
 | Backend | Node.js, Express.js |
 | Database | MongoDB |
 | ODM | Mongoose |
-| Authentication | JWT |
+| Authentication | JWT, Firebase Phone Auth |
 | Programming Language | JavaScript |
 | API Communication | REST APIs |
 | Location Services | GPS / Location Tracking |
@@ -107,7 +107,7 @@ RoadRescue_AI/
 │
 ├── src/
 │   ├── components/       # Shared UI components
-│   ├── config/           # Frontend API configuration
+│   ├── config/           # Frontend API & Firebase configuration
 │   ├── context/          # Authentication and session context
 │   ├── navigation/       # Application navigators
 │   │
@@ -117,7 +117,9 @@ RoadRescue_AI/
 │   │   ├── driver/       # Driver screens
 │   │   └── mechanic/     # Mechanic screens
 │   │
-│   └── theme/            # App styling and theme
+│   ├── services/         # Firebase phone auth services (web & native)
+│   ├── theme/            # App styling and theme
+│   └── utils/            # Helper utilities and secure API wrapper
 │
 ├── backend/
 │   ├── config/           # MongoDB connection
@@ -126,6 +128,7 @@ RoadRescue_AI/
 │   ├── routes/
 │   │   └── api.js        # Express API routes
 │   ├── scripts/          # Admin creation and migration scripts
+│   ├── services/         # Firebase Admin SDK service
 │   └── server.js         # Backend entry point
 │
 └── README.md
@@ -145,6 +148,91 @@ Before running the project, make sure you have:
 
 ---
 
+## 🚀 Setup & Installation
+
+### 1. Install frontend dependencies
+
+From the repository root:
+
+```bash
+npm install
+```
+
+### 2. Configure and start the backend
+
+```bash
+cd backend
+npm install
+```
+
+Create `backend/.env` locally (do not commit this file to Git):
+
+```dotenv
+PORT=5000
+MONGODB_URI=<your MongoDB connection string>
+JWT_SECRET=<your secure JWT secret>
+```
+
+Start the API:
+
+```bash
+npm start
+```
+
+The server listens on port `5000` by default. Health endpoint: `http://localhost:5000/`.
+
+### 3. Configure the frontend API address
+
+Set the API base URL in `src/config/api.config.js`:
+- **Android emulator:** `http://10.0.2.2:5000/api`
+- **Physical device:** `http://<your-computer-lan-ip>:5000/api`
+- **Web:** `http://localhost:5000/api`
+
+### 4. Start the frontend
+
+From the repository root:
+
+```bash
+npm start
+```
+
+Use the Expo CLI convenience commands:
+
+```bash
+npm run android
+npm run ios
+npm run web
+```
+
+---
+
+## 🛡️ Admin Account Creation
+
+To create an Admin account, run the interactive script from the `backend` directory:
+
+```bash
+cd backend
+node scripts/createAdmin.js
+```
+
+---
+
+## 🌐 API Routes Overview
+
+| Route group | Purpose |
+|---|---|
+| `/api/auth` | Registration, login, account session, OTP verification, and password flows |
+| `/api/requests` | Roadside service requests and status tracking |
+| `/api/profile` | Profile, vehicles, and mechanic availability |
+| `/api/earnings` | Mechanic earnings |
+| `/api/feedback` | Service feedback and ratings |
+| `/api/chat` | Request-related messaging |
+| `/api/notifications` | In-app notifications |
+| `/api/admin` | Admin statistics and management operations |
+| `/api/support` | Support tickets |
+| `/api/payments` | Payment-related routes |
+
+---
 
 ## 🎯 Project Objectives
 
@@ -177,4 +265,3 @@ Software Engineering Final Year Project
 GitHub: [Intsaar Amjad](https://github.com/intsaaramjad-max)
 
 Repository: [RoadRescue AI](https://github.com/intsaaramjad-max/RoadRescue_AI)
-

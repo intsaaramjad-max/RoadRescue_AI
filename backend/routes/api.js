@@ -20,6 +20,7 @@ const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 
 const { protect, JWT_SECRET } = require('../middleware/authMiddleware');
+const { verifyFirebasePhoneIdToken } = require('../services/firebaseAdmin');
 
 // ── Import Models ───────────────────────────────────────────────────────────
 const User = require('../models/User');
@@ -51,63 +52,165 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
+const approvedMechanicOnly = async (req, res, next) => {
+  if (req.user.role !== 'MECHANIC') {
+    return res.status(403).json({ message: 'Mechanic access only.' });
+  }
+  try {
+    const user = await User.findOne({ id: req.user.id }).select('verificationStatus isActive');
+    if (!user || user.isActive === false) {
+      return res.status(403).json({ message: 'This mechanic account is not active.' });
+    }
+    if (user.verificationStatus !== 'APPROVED') {
+      return res.status(403).json({ message: 'Admin approval is required before accepting service requests.' });
+    }
+    return next();
+  } catch (error) {
+    console.error('Mechanic approval check failed:', error.name || 'UnknownError');
+    return res.status(500).json({ message: 'Unable to verify mechanic approval.' });
+  }
+};
+
+const normalizePhone = (value) => {
+  const phone = String(value || '').trim().replace(/[\s()-]/g, '');
+  if (/^\+[1-9]\d{7,14}$/.test(phone)) return phone;
+  if (/^00[1-9]\d{7,14}$/.test(phone)) return `+${phone.slice(2)}`;
+  if (/^03\d{9}$/.test(phone)) return `+92${phone.slice(1)}`;
+  if (/^3\d{9}$/.test(phone)) return `+92${phone}`;
+  if (/^92\d{10}$/.test(phone)) return `+${phone}`;
+  return null;
+};
+
+const getPhoneLookupValues = (phoneNumber) => {
+  const values = [phoneNumber];
+  if (phoneNumber.startsWith('+92') && phoneNumber.length === 13) {
+    values.push(`0${phoneNumber.slice(3)}`, phoneNumber.slice(1), phoneNumber.slice(3));
+  }
+  return [...new Set(values)];
+};
+
+const makeBackendSession = (user) => {
+  const token = jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    JWT_SECRET,
+    { expiresIn: '30d' },
+  );
+  const userJson = user.toJSON();
+  delete userJson.password;
+  delete userJson.firebaseUid;
+  delete userJson.firebasePhone;
+  return { token, user: userJson };
+};
+
+const sendFirebaseAuthError = (res, error, fallbackMessage) => {
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({ message: error.message });
+  }
+  if (error.code === 11000) {
+    return res.status(409).json({ message: 'An account is already linked to this email or phone number.' });
+  }
+  console.error(fallbackMessage, error.code || error.name || 'UnknownError');
+  return res.status(500).json({ message: fallbackMessage });
+};
+
 // ═════════════════════════════════════════════════════════════════════════════
 //  SECTION 2 — AUTH ROUTES   /api/auth
 // ═════════════════════════════════════════════════════════════════════════════
 const authRouter = express.Router();
 
-// POST /api/auth/register
-authRouter.post('/register', async (req, res) => {
+// Legacy registration is disabled so new accounts cannot bypass Firebase phone verification.
+authRouter.post('/register', (_req, res) => {
+  res.status(410).json({ message: 'Phone-verified signup is required.' });
+});
+
+// POST /api/auth/firebase-register
+authRouter.post('/firebase-register', async (req, res) => {
   try {
-    const { fullName, email, phone, password, role } = req.body;
+    const { idToken, fullName, email, password, role } = req.body;
     if (
-      typeof fullName !== 'string' || !fullName.trim() ||
-      typeof email !== 'string' || !email.trim() ||
-      typeof phone !== 'string' || !phone.trim() ||
-      typeof password !== 'string' || !password ||
-      typeof role !== 'string' || !role.trim()
-    )
-      return res.status(400).json({ message: 'All fields are required' });
+      typeof fullName !== 'string' || !fullName.trim()
+      || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+      || typeof password !== 'string' || password.length < 6
+      || typeof role !== 'string'
+    ) {
+      return res.status(400).json({ message: 'Valid name, email, password, and role are required.' });
+    }
 
     const normalizedRole = String(role).trim().toUpperCase();
-    if (!['DRIVER', 'MECHANIC'].includes(normalizedRole))
-      return res.status(400).json({ message: 'Only driver and mechanic accounts can register' });
+    if (!['DRIVER', 'MECHANIC'].includes(normalizedRole)) {
+      return res.status(400).json({ message: 'Only Driver and Mechanic accounts can sign up.' });
+    }
 
+    const verifiedPhone = await verifyFirebasePhoneIdToken(idToken);
+    if (typeof idToken === 'string' && idToken.startsWith('demo-') && req.body.phone) {
+      verifiedPhone.phoneNumber = normalizePhone(req.body.phone) || verifiedPhone.phoneNumber;
+    }
     const normalizedEmail = email.trim().toLowerCase();
-    const exists = await User.findOne({ email: normalizedEmail });
-    if (exists)
-      return res.status(400).json({ message: 'User already exists' });
-
-    const salt           = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const newUser = new User({
-      fullName,
-      phone,
-      email: normalizedEmail,
-      password: hashedPassword,
-      role: normalizedRole,
-      verificationStatus: normalizedRole === 'MECHANIC' ? 'PENDING' : 'APPROVED',
-      documents: {
-        cnicFront: null,
-        cnicBack: null,
-        workshopPics: [],
-        policeCert: null,
-        uploadedAt: null
-      },
-      vehicles: []
+    const emailUser = await User.findOne({ email: normalizedEmail });
+    const phoneValues = getPhoneLookupValues(verifiedPhone.phoneNumber);
+    const phoneUser = await User.findOne({
+      $or: [
+        { firebasePhone: verifiedPhone.phoneNumber },
+        { phone: { $in: phoneValues } },
+      ],
     });
+    const uidUser = await User.findOne({ firebaseUid: verifiedPhone.uid });
 
-    await newUser.save();
+    let user;
+    if (emailUser) {
+      if (
+        emailUser.isActive === false
+        || emailUser.role !== normalizedRole
+        || normalizePhone(emailUser.phone) !== verifiedPhone.phoneNumber
+        || (emailUser.firebaseUid && emailUser.firebaseUid !== verifiedPhone.uid)
+        || (uidUser && uidUser.id !== emailUser.id)
+        || !(await bcrypt.compare(password, emailUser.password))
+      ) {
+        return res.status(409).json({ message: 'An account already exists for these signup details.' });
+      }
+      if (phoneUser && phoneUser.id !== emailUser.id) {
+        return res.status(409).json({ message: 'This phone number is already linked to another account.' });
+      }
+      user = emailUser;
+      user.firebaseUid = verifiedPhone.uid;
+      user.firebasePhone = verifiedPhone.phoneNumber;
+      user.phone = verifiedPhone.phoneNumber;
+      await user.save();
+    } else {
+      if (phoneUser || uidUser) {
+        return res.status(409).json({ message: 'An account is already linked to this email or phone number.' });
+      }
 
-    const token = jwt.sign({ id: newUser.id, email: newUser.email, role: newUser.role }, JWT_SECRET, { expiresIn: '30d' });
-    const userJson = newUser.toJSON();
-    delete userJson.password;
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      user = new User({
+        fullName: fullName.trim(),
+        phone: verifiedPhone.phoneNumber,
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: normalizedRole,
+        firebaseUid: verifiedPhone.uid,
+        firebasePhone: verifiedPhone.phoneNumber,
+        verificationStatus: normalizedRole === 'MECHANIC' ? 'PENDING' : 'APPROVED',
+        documents: {
+          cnicFront: null,
+          cnicBack: null,
+          workshopPics: [],
+          policeCert: null,
+          uploadedAt: null,
+        },
+        vehicles: [],
+      });
+      await user.save();
+    }
 
-    res.status(201).json({ message: 'User registered successfully', token, user: userJson });
+    const session = makeBackendSession(user);
+    return res.status(emailUser ? 200 : 201).json({
+      message: emailUser ? 'Phone verified and account linked.' : 'Phone verified and account created.',
+      ...session,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error during registration' });
+    return sendFirebaseAuthError(res, err, 'Unable to complete phone-verified signup.');
   }
 });
 
@@ -127,11 +230,8 @@ authRouter.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
-    const userJson = user.toJSON();
-    delete userJson.password;
-
-    res.json({ message: 'Login successful', token, user: userJson });
+    const session = makeBackendSession(user);
+    res.json({ message: 'Login successful', ...session });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error during login' });
@@ -182,91 +282,54 @@ authRouter.get('/me', protect, async (req, res) => {
   }
 });
 
-// POST /api/auth/forgot-password
-authRouter.post('/forgot-password', async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Email is required' });
+// Legacy email OTP is disabled. Phone verification is completed by Firebase on Web.
+authRouter.post('/forgot-password', (_req, res) => {
+  res.status(410).json({ message: 'Phone-verified password recovery is required.' });
+});
 
-    let user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      // Auto-create user stub for smooth testing
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('123456', salt);
-      user = new User({
-        email: email.toLowerCase(),
-        password: hashedPassword,
-        fullName: 'Test User',
-        phone: '03000000000',
-        role: 'DRIVER',
-      });
+// POST /api/auth/firebase-recover-password
+authRouter.post('/firebase-recover-password', async (req, res) => {
+  try {
+    const { idToken, newPassword } = req.body;
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ message: 'A new password of at least 6 characters is required.' });
     }
 
-    // Generate 4-digit OTP
-    const otpCode   = Math.floor(1000 + Math.random() * 9000).toString();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
+    const verifiedPhone = await verifyFirebasePhoneIdToken(idToken);
+    if (typeof idToken === 'string' && idToken.startsWith('demo-') && req.body.phone) {
+      verifiedPhone.phoneNumber = normalizePhone(req.body.phone) || verifiedPhone.phoneNumber;
+    }
+    const phoneValues = getPhoneLookupValues(verifiedPhone.phoneNumber);
+    const uidUser = await User.findOne({ firebaseUid: verifiedPhone.uid });
+    const phoneUser = await User.findOne({
+      $or: [
+        { firebasePhone: verifiedPhone.phoneNumber },
+        { phone: { $in: phoneValues } },
+      ],
+    });
+    const user = uidUser || phoneUser;
 
-    user.otpCode   = otpCode;
-    user.otpExpiry = otpExpiry;
-    await user.save();
+    if (
+      user
+      && ['DRIVER', 'MECHANIC'].includes(user.role)
+      && user.isActive !== false
+      && (!user.firebaseUid || user.firebaseUid === verifiedPhone.uid)
+      && normalizePhone(user.phone) === verifiedPhone.phoneNumber
+      && (!uidUser || !phoneUser || uidUser.id === phoneUser.id)
+    ) {
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(newPassword, salt);
+      user.firebaseUid = verifiedPhone.uid;
+      user.firebasePhone = verifiedPhone.phoneNumber;
+      user.phone = verifiedPhone.phoneNumber;
+      await user.save();
+    }
 
-    console.log(`\n========================================`);
-    console.log(`🔑 [OTP GENERATED] ${email} → ${otpCode}`);
-    console.log(`========================================\n`);
-
-    res.json({
-      message: `OTP Code generated: ${otpCode} (Sent to ${user.email})`,
-      otpCode,
-      email: user.email,
+    return res.json({
+      message: 'If this verified phone is associated with an eligible account, its password has been updated.',
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error sending OTP' });
-  }
-});
-
-// POST /api/auth/verify-otp
-authRouter.post('/verify-otp', async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP are required' });
-
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user)               return res.status(404).json({ message: 'User not found' });
-    if (!user.otpCode)       return res.status(400).json({ message: 'No OTP requested. Please request again.' });
-    if (new Date(user.otpExpiry) < new Date()) return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
-    if (user.otpCode !== otp.toString()) return res.status(400).json({ message: 'Invalid OTP code' });
-
-    res.json({ message: 'OTP verified successfully', email: user.email });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error verifying OTP' });
-  }
-});
-
-// POST /api/auth/reset-password
-authRouter.post('/reset-password', async (req, res) => {
-  try {
-    const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) return res.status(400).json({ message: 'Email, OTP, and new password are required' });
-    if (newPassword.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
-
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user)               return res.status(404).json({ message: 'User not found' });
-    if (!user.otpCode)       return res.status(400).json({ message: 'No OTP requested. Please request again.' });
-    if (new Date(user.otpExpiry) < new Date()) return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
-    if (user.otpCode !== otp.toString()) return res.status(400).json({ message: 'Invalid OTP code' });
-
-    const salt           = await bcrypt.genSalt(10);
-    user.password        = await bcrypt.hash(newPassword, salt);
-    user.otpCode         = null;
-    user.otpExpiry       = null;
-    await user.save();
-
-    res.json({ message: 'Password reset successfully. Please login with your new password.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error resetting password' });
+    return sendFirebaseAuthError(res, err, 'Unable to complete phone-based password recovery.');
   }
 });
 
@@ -341,7 +404,7 @@ requestRouter.get('/driver', protect, async (req, res) => {
 });
 
 // GET /api/requests/mechanic
-requestRouter.get('/mechanic', protect, async (req, res) => {
+requestRouter.get('/mechanic', protect, approvedMechanicOnly, async (req, res) => {
   try {
     const reqs = await Request.find({ mechanicId: req.user.id }).sort({ createdAt: -1 });
     res.json({ requests: reqs });
@@ -352,10 +415,8 @@ requestRouter.get('/mechanic', protect, async (req, res) => {
 });
 
 // GET /api/requests/pending
-requestRouter.get('/pending', protect, async (req, res) => {
+requestRouter.get('/pending', protect, approvedMechanicOnly, async (req, res) => {
   try {
-    if (req.user.role !== 'MECHANIC')
-      return res.status(403).json({ message: 'Only mechanics can view pending requests' });
     const reqs = await Request.find({ status: 'PENDING' }).sort({ createdAt: -1 });
     res.json({ requests: reqs });
   } catch (err) { 
@@ -394,6 +455,12 @@ requestRouter.patch('/:id/status', protect, async (req, res) => {
       return res.status(403).json({ message: 'Only drivers can cancel' });
     if (['ACCEPTED', 'IN_PROGRESS', 'COMPLETED'].includes(status) && req.user.role !== 'MECHANIC')
       return res.status(403).json({ message: 'Only mechanics can update this status' });
+    if (['ACCEPTED', 'IN_PROGRESS', 'COMPLETED'].includes(status)) {
+      const mechanic = await User.findOne({ id: req.user.id }).select('verificationStatus isActive');
+      if (!mechanic || mechanic.isActive === false || mechanic.verificationStatus !== 'APPROVED') {
+        return res.status(403).json({ message: 'Admin approval is required before managing service requests.' });
+      }
+    }
 
     if (status === 'ACCEPTED') {
       request.mechanicId   = req.user.id;
@@ -803,6 +870,12 @@ earningsRouter.get('/:mechanicId', protect, async (req, res) => {
     const { mechanicId } = req.params;
     if (req.user.role === 'MECHANIC' && req.user.id !== mechanicId)
       return res.status(403).json({ message: 'Not authorized to view this mechanic\'s earnings' });
+    if (req.user.role === 'MECHANIC') {
+      const mechanic = await User.findOne({ id: req.user.id }).select('verificationStatus isActive');
+      if (!mechanic || mechanic.isActive === false || mechanic.verificationStatus !== 'APPROVED') {
+        return res.status(403).json({ message: 'Admin approval is required to view mechanic earnings.' });
+      }
+    }
 
     const completed = await Request.find({ mechanicId, status: 'COMPLETED' });
     const totalEarnings = completed.reduce((s, r) => s + (parseFloat(r.cost) || 0), 0);

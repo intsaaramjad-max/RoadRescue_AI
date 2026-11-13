@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, Platform, KeyboardAvoidingView } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Button } from '../../components/Button';
@@ -7,112 +7,67 @@ import { Input } from '../../components/Input';
 import { Card } from '../../components/Card';
 import { Header } from '../../components/Header';
 import { colors, typography, spacing } from '../../theme/theme';
-import { API_URL } from '../../config/api.config';
+import { normalizePhoneNumber } from '../../utils/phoneNumber';
 
 export default function ForgotPasswordScreen({ navigation }) {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState(null);
-  const [isError, setIsError] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [error, setError] = useState('');
 
-  const showAlert = (title, message) => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.alert(`${title}\n${message}`);
-    }
-  };
-
-  const handleSendOtp = async () => {
-    const targetEmail = email.trim();
-    if (!targetEmail || !targetEmail.includes('@')) {
-      setIsError(true);
-      setStatusMessage('Please enter a valid email address');
-      showAlert('Validation Error', 'Please enter a valid email address');
+  const requestRecovery = () => {
+    const normalizedPhone = normalizePhoneNumber(phone);
+    if (!normalizedPhone) {
+      setError('Enter a valid phone number. Pakistani mobile numbers can use +92 or start with 03.');
       return;
     }
-
-    setLoading(true);
-    setStatusMessage(null);
-    setIsError(false);
-
-    try {
-      const response = await fetch(`${API_URL}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail.toLowerCase() }),
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        const msg = data.message || 'OTP code generated!';
-        setStatusMessage(`✅ ${msg}`);
-        setIsError(false);
-        showAlert('OTP Sent 📬', msg);
-
-        setTimeout(() => {
-          navigation.navigate('OtpVerification', { email: targetEmail.toLowerCase() });
-        }, 1200);
-      } else {
-        setIsError(true);
-        setStatusMessage(data.message || 'Email not found');
-        showAlert('Error', data.message || 'Email not found');
-      }
-    } catch (err) {
-      console.error(err);
-      setIsError(true);
-      setStatusMessage('Network error. Check backend connection.');
-      showAlert('Error', 'Network error. Please try again.');
-    } finally {
-      setLoading(false);
+    // Set to true to allow demo on all platforms. Original code preserved.
+    const DEMO_MODE = true;
+    if (!DEMO_MODE && Platform.OS !== 'web') {
+      setError('Phone-based recovery is currently available on Web only.');
+      return;
     }
+    setError('');
+    navigation.navigate('OtpVerification', {
+      mode: 'recovery',
+      phone: normalizedPhone,
+    });
   };
 
   return (
     <ScreenWrapper>
       <Header title="Forgot Password" showBack />
       <KeyboardAvoidingView
-        style={styles.keyboardAvoiding}
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         >
-          <View style={styles.logoWrap}>
-            <Image source={require('../../../assets/logo1.png')} style={styles.logo} />
-          </View>
-
-          <View style={styles.header}>
-            <Text style={styles.title}>Reset Password</Text>
-            <Text style={styles.subtitle}>Enter your registered email to receive an OTP code.</Text>
-          </View>
-
-          <Card style={styles.formCard}>
+          <Card style={styles.card}>
+            <View style={styles.iconWrap}>
+              <Ionicons name="phone-portrait-outline" size={34} color={colors.primary} />
+            </View>
+            <Text style={styles.title}>Reset with your phone</Text>
+            <Text style={styles.subtitle}>
+              Verify the phone number associated with your account using Firebase SMS verification.
+            </Text>
             <Input
-              label="Email Address"
-              placeholder="Enter your registered email"
-              keyboardType="email-address"
+              label="Registered Phone Number"
+              placeholder="+923001234567"
+              keyboardType="phone-pad"
               autoCapitalize="none"
-              autoCorrect={false}
-              value={email}
-              onChangeText={(text) => setEmail(text)}
-              icon={<Ionicons name="mail-outline" size={19} color={colors.secondary} />}
+              value={phone}
+              onChangeText={(value) => {
+                setPhone(value);
+                setError('');
+              }}
+              icon={<Ionicons name="call-outline" size={19} color={colors.secondary} />}
             />
-
-            {statusMessage && (
-              <View style={[styles.msgContainer, isError ? styles.errorBg : styles.successBg]}>
-                <Text style={[styles.msgText, isError ? styles.errorTxt : styles.successTxt]}>
-                  {statusMessage}
-                </Text>
-              </View>
-            )}
-
+            {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
             <Button
-              title={loading ? 'Sending OTP...' : 'Send Verification Code'}
-              onPress={handleSendOtp}
-              isLoading={loading}
-              disabled={loading}
-              style={styles.submitBtn}
+              title="Continue to Phone Verification"
+              onPress={requestRecovery}
+              style={styles.button}
             />
           </Card>
         </ScrollView>
@@ -122,72 +77,30 @@ export default function ForgotPasswordScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   container: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
     flexGrow: 1,
     justifyContent: 'center',
+    padding: spacing.lg,
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
   },
-  keyboardAvoiding: {
-    flex: 1,
-  },
-  header: {
-    marginBottom: spacing.xl,
-    alignItems: 'center',
-  },
+  card: { width: '100%' },
+  iconWrap: { alignItems: 'center', marginBottom: spacing.md },
   title: {
-    fontSize: typography.sizes.xxl,
-    fontWeight: typography.weights.bold,
     color: colors.text,
+    fontSize: typography.sizes.xl,
+    fontWeight: typography.weights.bold,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: typography.sizes.md,
     color: colors.textMuted,
-    marginTop: spacing.xs,
+    fontSize: typography.sizes.sm,
+    lineHeight: 21,
+    marginVertical: spacing.md,
     textAlign: 'center',
-    lineHeight: 23,
-    maxWidth: 360,
   },
-  formCard: {
-    marginBottom: spacing.xl,
-    width: '100%',
-  },
-  logoWrap: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    resizeMode: 'contain',
-  },
-  submitBtn: {
-    marginTop: spacing.md,
-  },
-  msgContainer: {
-    padding: spacing.sm,
-    borderRadius: 8,
-    marginVertical: spacing.xs,
-  },
-  errorBg: {
-    backgroundColor: 'rgba(239, 68, 68, 0.14)',
-  },
-  successBg: {
-    backgroundColor: 'rgba(16, 185, 129, 0.14)',
-  },
-  msgText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  errorTxt: {
-    color: colors.error,
-  },
-  successTxt: {
-    color: colors.success,
-  },
+  error: { color: colors.error, marginTop: spacing.sm },
+  button: { marginTop: spacing.md },
 });
